@@ -3,7 +3,6 @@ import { useLiveQuery } from '@tanstack/react-db'
 import {
   IconAlertTriangle,
   IconDownload,
-  IconFileTypeCsv,
   IconJson,
   IconDots,
   IconLayersIntersect,
@@ -62,10 +61,7 @@ import {
   updateTimelineTitle,
 } from '#/features/timeline/operations'
 import { getTimelineCollection } from '#/features/timeline/storage'
-import {
-  downloadTimelineExport,
-  type TimelineExportFormat,
-} from '#/features/timeline/timelineExport'
+import { downloadTimelineExport } from '#/features/timeline/timelineExport'
 
 interface TimelineAppProps {
   activeTimelineId?: string
@@ -228,12 +224,10 @@ export function TimelineApp({
     persistTimeline(moveLayer(activeTimeline, layerId, direction))
   }
 
-  const handleExport = (format: TimelineExportFormat) => {
+  const handleExport = () => {
     if (!activeTimeline) return
-    downloadTimelineExport(activeTimeline, format)
-    toast.success(
-      `Timeline exported as ${format === 'json' ? 'JSON' : 'CSV'}`,
-    )
+    downloadTimelineExport(activeTimeline)
+    toast.success('Timeline exported')
   }
 
   const handleDelete = () => {
@@ -354,13 +348,9 @@ export function TimelineApp({
                   >
                     Rename timeline
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => handleExport('json')}>
+                  <DropdownMenuItem onSelect={handleExport}>
                     <IconJson />
-                    Export JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => handleExport('csv')}>
-                    <IconFileTypeCsv />
-                    Export CSV
+                    Export timeline
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -501,7 +491,7 @@ interface TimelineWorkspaceProps {
   onEditEvent: (eventId: string) => void
   onEditLayer: (layerId: string) => void
   onImportEvents: () => void
-  onExport: (format: TimelineExportFormat) => void
+  onExport: () => void
   onMoveLayer: (layerId: string, direction: 'up' | 'down') => void
 }
 
@@ -539,24 +529,10 @@ function TimelineWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline">
-                <IconDownload />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onSelect={() => onExport('json')}>
-                <IconJson />
-                Export JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onExport('csv')}>
-                <IconFileTypeCsv />
-                Export CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button type="button" variant="outline" onClick={onExport}>
+            <IconDownload />
+            Export
+          </Button>
           <Button type="button" variant="outline" onClick={onAddLayer}>
             <IconLayersIntersect />
             Add layer

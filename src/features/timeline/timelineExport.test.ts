@@ -39,20 +39,11 @@ const timeline: TimelineRecord = {
 
 describe('timeline export', () => {
   test('creates a lossless, readable JSON download', () => {
-    const exported = createTimelineExport(timeline, 'json')
+    const exported = createTimelineExport(timeline)
 
     expect(exported.filename).toBe('roadmap-cafe-launch.json')
     expect(exported.mimeType).toBe('application/json;charset=utf-8')
     expect(JSON.parse(exported.contents)).toEqual(timeline)
   })
 
-  test('creates CSV rows for events and empty layers', () => {
-    const exported = createTimelineExport(timeline, 'csv')
-
-    expect(exported.filename).toBe('roadmap-cafe-launch.csv')
-    expect(exported.contents).toContain('"Product, web"')
-    expect(exported.contents).toContain('"Launch ""beta"""')
-    expect(exported.contents).toContain('"Planning\nand delivery"')
-    expect(exported.contents).toContain('Marketing,,,,,,,,#0f766e')
-  })
 })
