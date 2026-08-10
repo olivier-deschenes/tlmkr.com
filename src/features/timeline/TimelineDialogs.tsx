@@ -1,7 +1,15 @@
+import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { IconCopy, IconTrash } from '@tabler/icons-react'
+import {
+  IconBrandOpenai,
+  IconCopy,
+  IconExternalLink,
+  IconJson,
+  IconTrash,
+} from '@tabler/icons-react'
 import { z } from 'zod'
 
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +83,10 @@ const eventFormSchema = z
     }
   })
 
+const eventImportFormSchema = z.object({
+  json: z.string().trim().min(1, 'Paste JSON or choose a JSON file.'),
+})
+
 export interface TimelineFormValues {
   title: string
 }
@@ -94,6 +106,10 @@ export interface EventFormValues {
   layerId: string
   startDate: string
   endDate: string
+}
+
+interface EventImportFormValues {
+  json: string
 }
 
 interface TimelineNameDialogProps {
@@ -365,6 +381,163 @@ export function EventDialog({
         />
       ) : null}
     </Dialog>
+  )
+}
+
+interface EventImportDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  chatGptUrl: string
+  onSubmit: (json: string) => void
+}
+
+export function EventImportDialog({
+  open,
+  onOpenChange,
+  chatGptUrl,
+  onSubmit,
+}: EventImportDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <EventImportForm
+          chatGptUrl={chatGptUrl}
+          onCancel={() => onOpenChange(false)}
+          onSubmit={onSubmit}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function EventImportForm({
+  chatGptUrl,
+  onCancel,
+  onSubmit,
+}: Pick<EventImportDialogProps, 'chatGptUrl' | 'onSubmit'> & {
+  onCancel: () => void
+}) {
+  const [importError, setImportError] = useState<string>()
+  const form = useForm({
+    defaultValues: { json: '' } satisfies EventImportFormValues,
+    validators: { onSubmit: eventImportFormSchema },
+    onSubmit: ({ value }) => {
+      try {
+        onSubmit(value.json)
+        onCancel()
+      } catch (error) {
+        setImportError(
+          error instanceof Error
+            ? error.message
+            : 'The events could not be imported.',
+        )
+      }
+    },
+  })
+
+  return (
+    <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Import events from JSON</DialogTitle>
+        <DialogDescription>
+          Add multiple events to this timeline. Existing events will not be
+          changed.
+        </DialogDescription>
+      </DialogHeader>
+      <Alert>
+        <IconBrandOpenai />
+        <AlertTitle>Generate the JSON with ChatGPT</AlertTitle>
+        <AlertDescription>
+          <p>
+            Open a prepared chat that knows the required format and this
+            timeline&apos;s layer names, then describe the events you want.
+          </p>
+          <Button asChild type="button" size="sm" variant="outline">
+            <a href={chatGptUrl} target="_blank" rel="noreferrer">
+              Open ChatGPT
+              <IconExternalLink />
+            </a>
+          </Button>
+        </AlertDescription>
+      </Alert>
+      <form
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setImportError(undefined)
+          void form.handleSubmit()
+        }}
+      >
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="event-import-file">JSON file</FieldLabel>
+            <Input
+              id="event-import-file"
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+                setImportError(undefined)
+                void file
+                  .text()
+                  .then((json) => form.setFieldValue('json', json))
+                  .catch(() =>
+                    setImportError('The selected file could not be read.'),
+                  )
+              }}
+            />
+          </Field>
+          <form.Field name="json">
+            {(field) => {
+              const invalid =
+                field.state.meta.isTouched && !field.state.meta.isValid
+              return (
+                <Field data-invalid={invalid}>
+                  <FieldLabel htmlFor={field.name}>JSON</FieldLabel>
+                  <Textarea
+                    id={field.name}
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => {
+                      setImportError(undefined)
+                      field.handleChange(event.target.value)
+                    }}
+                    aria-invalid={invalid || importError !== undefined}
+                    placeholder={'{\n  "events": [\n    { ... }\n  ]\n}'}
+                    rows={13}
+                    className="resize-y font-mono text-xs"
+                    autoFocus
+                  />
+                  {invalid ? (
+                    <FieldError errors={field.state.meta.errors} />
+                  ) : null}
+                </Field>
+              )
+            }}
+          </form.Field>
+          {importError ? (
+            <Alert variant="destructive">
+              <IconJson />
+              <AlertTitle>Check the JSON</AlertTitle>
+              <AlertDescription>{importError}</AlertDescription>
+            </Alert>
+          ) : null}
+        </FieldGroup>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="submit">
+            <IconJson />
+            Import events
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   )
 }
 

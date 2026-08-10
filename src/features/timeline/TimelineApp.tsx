@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import {
   IconAlertTriangle,
+  IconJson,
   IconDots,
   IconLayersIntersect,
   IconPlus,
@@ -30,6 +31,7 @@ import { TimelineCanvas } from '#/features/timeline/TimelineCanvas'
 import {
   ConfirmDeleteDialog,
   EventDialog,
+  EventImportDialog,
   LayerDialog,
   TimelineNameDialog,
 } from '#/features/timeline/TimelineDialogs'
@@ -39,6 +41,10 @@ import type {
   TimelineFormValues,
 } from '#/features/timeline/TimelineDialogs'
 import { calculateDateRange } from '#/features/timeline/layout'
+import {
+  createChatGptEventUrl,
+  importEventsFromJson,
+} from '#/features/timeline/eventImport'
 import type { TimelineRecord } from '#/features/timeline/model'
 import {
   addEvent,
@@ -95,6 +101,7 @@ export function TimelineApp({
   const [renameTimelineOpen, setRenameTimelineOpen] = useState(false)
   const [layerDialog, setLayerDialog] = useState<LayerDialogState>(null)
   const [eventDialog, setEventDialog] = useState<EventDialogState>(null)
+  const [eventImportOpen, setEventImportOpen] = useState(false)
   const [deleteIntent, setDeleteIntent] = useState<DeleteIntent | null>(null)
   const [storageError, setStorageError] = useState<string>()
 
@@ -197,6 +204,17 @@ export function TimelineApp({
     })
     persistTimeline(next, 'Event duplicated')
     setEventDialog({ mode: 'edit', eventId: copyId })
+  }
+
+  const handleEventImport = (json: string) => {
+    if (!activeTimeline) return
+    const eventCountBeforeImport = activeTimeline.events.length
+    const next = importEventsFromJson(activeTimeline, json)
+    const importedCount = next.events.length - eventCountBeforeImport
+    persistTimeline(
+      next,
+      `${importedCount} ${importedCount === 1 ? 'event' : 'events'} imported`,
+    )
   }
 
   const handleMoveLayer = (layerId: string, direction: 'up' | 'down') => {
@@ -361,6 +379,7 @@ export function TimelineApp({
             }
             onEditEvent={(eventId) => setEventDialog({ mode: 'edit', eventId })}
             onEditLayer={(layerId) => setLayerDialog({ mode: 'edit', layerId })}
+            onImportEvents={() => setEventImportOpen(true)}
             onMoveLayer={handleMoveLayer}
           />
         ) : (
@@ -431,6 +450,12 @@ export function TimelineApp({
                 : undefined
             }
           />
+          <EventImportDialog
+            open={eventImportOpen}
+            onOpenChange={setEventImportOpen}
+            chatGptUrl={createChatGptEventUrl(activeTimeline)}
+            onSubmit={handleEventImport}
+          />
         </>
       ) : null}
       <ConfirmDeleteDialog
@@ -452,6 +477,7 @@ interface TimelineWorkspaceProps {
   onCreateEvent: (layerId: string) => void
   onEditEvent: (eventId: string) => void
   onEditLayer: (layerId: string) => void
+  onImportEvents: () => void
   onMoveLayer: (layerId: string, direction: 'up' | 'down') => void
 }
 
@@ -461,6 +487,7 @@ function TimelineWorkspace({
   onCreateEvent,
   onEditEvent,
   onEditLayer,
+  onImportEvents,
   onMoveLayer,
 }: TimelineWorkspaceProps) {
   const range = calculateDateRange(timeline.events)
@@ -490,6 +517,10 @@ function TimelineWorkspace({
           <Button type="button" variant="outline" onClick={onAddLayer}>
             <IconLayersIntersect />
             Add layer
+          </Button>
+          <Button type="button" variant="outline" onClick={onImportEvents}>
+            <IconJson />
+            Import JSON
           </Button>
           <Button
             type="button"
