@@ -49,6 +49,22 @@ export const timelineEventSchema = z
     },
   )
 
+type EventDateRange = Pick<
+  z.infer<typeof timelineEventSchema>,
+  'layerId' | 'startDate' | 'endDate'
+>
+
+export function timelineEventsOverlap(
+  left: EventDateRange,
+  right: EventDateRange,
+): boolean {
+  if (left.layerId !== right.layerId) return false
+
+  const leftEnd = left.endDate ?? left.startDate
+  const rightEnd = right.endDate ?? right.startDate
+  return left.startDate <= rightEnd && right.startDate <= leftEnd
+}
+
 export const timelineRecordSchema = z
   .object({
     schemaVersion: z.literal(TIMELINE_SCHEMA_VERSION),
@@ -110,6 +126,18 @@ export const timelineRecordSchema = z
           code: 'custom',
           message: 'Event must reference an existing layer',
           path: ['events', index, 'layerId'],
+        })
+      }
+
+      const conflictsWithEarlierEvent = timeline.events.some(
+        (candidate, candidateIndex) =>
+          candidateIndex < index && timelineEventsOverlap(event, candidate),
+      )
+      if (conflictsWithEarlierEvent) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Events on the same layer cannot overlap',
+          path: ['events', index, 'startDate'],
         })
       }
     })

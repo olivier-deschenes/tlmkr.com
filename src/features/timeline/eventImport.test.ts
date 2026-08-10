@@ -96,6 +96,30 @@ describe('event JSON import', () => {
     ).toThrow('No layer named \"People\" exists')
   })
 
+  test('rejects overlapping imported events', () => {
+    expect(() =>
+      importEventsFromJson(
+        timeline(),
+        JSON.stringify({
+          events: [
+            {
+              title: 'Launch window',
+              layer: 'Launches',
+              startDate: '2026-09-01',
+              endDate: '2026-09-10',
+            },
+            {
+              title: 'Launch day',
+              layer: 'Launches',
+              startDate: '2026-09-10',
+            },
+          ],
+        }),
+        { idFactory: () => crypto.randomUUID(), now: NOW },
+      ),
+    ).toThrow(EventImportError)
+  })
+
   test('builds a ChatGPT prompt with the accepted format and current layers', () => {
     const prompt = createChatGptEventPrompt(timeline())
     const url = new URL(createChatGptEventUrl(timeline()))

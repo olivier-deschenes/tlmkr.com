@@ -26,7 +26,10 @@ import {
   generateTimelineTicks,
   layoutAndPackTimelineEvents,
 } from '#/features/timeline/layout'
-import { formatEventDuration } from '#/features/timeline/duration'
+import {
+  formatEventDuration,
+  formatLayerDuration,
+} from '#/features/timeline/duration'
 import type {
   TimelineEvent,
   TimelineLayer,
@@ -139,6 +142,7 @@ export function TimelineCanvas({
                 layerIndex={layerIndex}
                 layerCount={orderedLayers.length}
                 eventCount={layerEvents.length}
+                duration={formatLayerDuration(layerEvents)}
                 onCreateEvent={onCreateEvent}
                 onEditLayer={onEditLayer}
                 onMoveLayer={onMoveLayer}
@@ -164,6 +168,7 @@ interface LayerSummaryProps {
   layerIndex: number
   layerCount: number
   eventCount: number
+  duration: string | null
   onCreateEvent: (layerId: string) => void
   onEditLayer: (layerId: string) => void
   onMoveLayer: (layerId: string, direction: LayerMoveDirection) => void
@@ -174,6 +179,7 @@ function LayerSummary({
   layerIndex,
   layerCount,
   eventCount,
+  duration,
   onCreateEvent,
   onEditLayer,
   onMoveLayer,
@@ -243,11 +249,13 @@ function LayerSummary({
           <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
             {layer.description}
           </p>
-        ) : (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            {eventCount} {eventCount === 1 ? 'event' : 'events'}
-          </p>
-        )}
+        ) : null}
+        <p
+          className={`${layer.description ? 'mt-1' : 'mt-2'} text-[11px] text-muted-foreground`}
+        >
+          {eventCount} {eventCount === 1 ? 'event' : 'events'}
+          {duration ? ` · ${duration}` : ''}
+        </p>
       </div>
     </div>
   )

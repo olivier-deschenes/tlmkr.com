@@ -6,7 +6,7 @@ import {
   type TimelineEventInput,
   type TimelineRecord,
 } from './model'
-import { addEvent, DEFAULT_EVENT_COLOR } from './operations'
+import { addEvent, DEFAULT_EVENT_COLOR, EventOverlapError } from './operations'
 
 const requiredTextSchema = z.string().trim().min(1)
 const optionalTextSchema = z.string().trim().min(1).optional()
@@ -123,14 +123,21 @@ export function importEventsFromJson(
     color: event.color ?? DEFAULT_EVENT_COLOR,
   }))
 
-  return inputs.reduce(
-    (nextTimeline, input) =>
-      addEvent(nextTimeline, input, {
-        id: options.idFactory?.(),
-        now: options.now,
-      }),
-    timeline,
-  )
+  try {
+    return inputs.reduce(
+      (nextTimeline, input) =>
+        addEvent(nextTimeline, input, {
+          id: options.idFactory?.(),
+          now: options.now,
+        }),
+      timeline,
+    )
+  } catch (error) {
+    if (error instanceof EventOverlapError) {
+      throw new EventImportError(error.message)
+    }
+    throw error
+  }
 }
 
 export function createChatGptEventPrompt(timeline: TimelineRecord): string {
@@ -163,6 +170,7 @@ Rules:
 - Return valid JSON only, with no markdown code fences or commentary.
 - Use real calendar dates in YYYY-MM-DD format.
 - Omit endDate for a one-day event. For a date range, endDate must be on or after startDate.
+- Events assigned to the same layer must not share any dates; date ranges are inclusive.
 - subtitle, description, endDate, and color are optional. Omit optional fields when they are unknown.
 - If included, color must be a six-digit hex color such as #2563eb.
 - Do not include IDs or any fields not shown above.

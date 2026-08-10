@@ -1,6 +1,7 @@
 import {
   layerSchema,
   timelineEventSchema,
+  timelineEventsOverlap,
   timelineRecordSchema,
   TIMELINE_SCHEMA_VERSION,
 } from './model'
@@ -36,6 +37,15 @@ export type LayerPatch = Partial<LayerInput>
 export type TimelineEventPatch = Partial<TimelineEventInput>
 export type LayerMoveDirection = 'up' | 'down'
 
+export class EventOverlapError extends Error {
+  constructor(event: TimelineEvent, conflictingEvent: TimelineEvent) {
+    super(
+      `“${event.title}” overlaps “${conflictingEvent.title}”. Events on the same layer cannot share dates.`,
+    )
+    this.name = 'EventOverlapError'
+  }
+}
+
 const createId = () => crypto.randomUUID()
 
 function toTimestamp(timestamp: Timestamp | undefined): string {
@@ -56,6 +66,61 @@ function requireEvent(
   const event = timeline.events.find((candidate) => candidate.id === eventId)
   if (!event) throw new Error(`Event ${eventId} does not exist`)
   return event
+}
+
+function requireNoEventOverlap(
+  timeline: TimelineRecord,
+  event: TimelineEvent,
+  ignoredEventId?: string,
+): void {
+  const conflict = timeline.events.find(
+    (candidate) =>
+      candidate.id !== ignoredEventId &&
+      timelineEventsOverlap(event, candidate),
+  )
+  if (conflict) throw new EventOverlapError(event, conflict)
+}
+
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
+
+function addDays(date: string, days: number): string {
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`)
+  return new Date(timestamp + days * MILLISECONDS_PER_DAY)
+    .toISOString()
+    .slice(0, 10)
+}
+
+function durationInDays(event: TimelineEvent): number {
+  if (!event.endDate) return 0
+  return (
+    (Date.parse(`${event.endDate}T00:00:00.000Z`) -
+      Date.parse(`${event.startDate}T00:00:00.000Z`)) /
+    MILLISECONDS_PER_DAY
+  )
+}
+
+function nextAvailableDuplicate(
+  timeline: TimelineRecord,
+  source: TimelineEvent,
+  id: string,
+): TimelineEvent {
+  const duration = durationInDays(source)
+  let startDate = addDays(source.endDate ?? source.startDate, 1)
+
+  while (true) {
+    const copy = timelineEventSchema.parse({
+      ...source,
+      id,
+      title: `${source.title} copy`,
+      startDate,
+      endDate: source.endDate ? addDays(startDate, duration) : undefined,
+    })
+    const conflict = timeline.events.find((event) =>
+      timelineEventsOverlap(copy, event),
+    )
+    if (!conflict) return copy
+    startDate = addDays(conflict.endDate ?? conflict.startDate, 1)
+  }
 }
 
 function updateTimeline(
@@ -213,6 +278,7 @@ export function addEvent(
     ...input,
     id: options.id ?? createId(),
   })
+  requireNoEventOverlap(timeline, event)
 
   return updateTimeline(
     timeline,
@@ -230,6 +296,7 @@ export function updateEvent(
   const current = requireEvent(timeline, eventId)
   if (patch.layerId !== undefined) requireLayer(timeline, patch.layerId)
   const updated = timelineEventSchema.parse({ ...current, ...patch })
+  requireNoEventOverlap(timeline, updated, eventId)
 
   return updateTimeline(
     timeline,
@@ -248,11 +315,11 @@ export function duplicateEvent(
   options: EntityOptions = {},
 ): TimelineRecord {
   const source = requireEvent(timeline, eventId)
-  const copy = timelineEventSchema.parse({
-    ...source,
-    id: options.id ?? createId(),
-    title: `${source.title} copy`,
-  })
+  const copy = nextAvailableDuplicate(
+    timeline,
+    source,
+    options.id ?? createId(),
+  )
 
   return updateTimeline(
     timeline,

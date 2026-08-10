@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import {
   IconAlertTriangle,
-  IconDownload,
+  IconFileImport,
   IconJson,
   IconDots,
   IconLayersIntersect,
@@ -34,6 +34,7 @@ import {
   EventDialog,
   EventImportDialog,
   LayerDialog,
+  TimelineImportDialog,
   TimelineNameDialog,
 } from '#/features/timeline/TimelineDialogs'
 import type {
@@ -62,6 +63,7 @@ import {
 } from '#/features/timeline/operations'
 import { getTimelineCollection } from '#/features/timeline/storage'
 import { downloadTimelineExport } from '#/features/timeline/timelineExport'
+import { importTimelineFromJson } from '#/features/timeline/timelineImport'
 
 interface TimelineAppProps {
   activeTimelineId?: string
@@ -100,6 +102,7 @@ export function TimelineApp({
   )
 
   const [createTimelineOpen, setCreateTimelineOpen] = useState(false)
+  const [timelineImportOpen, setTimelineImportOpen] = useState(false)
   const [renameTimelineOpen, setRenameTimelineOpen] = useState(false)
   const [layerDialog, setLayerDialog] = useState<LayerDialogState>(null)
   const [eventDialog, setEventDialog] = useState<EventDialogState>(null)
@@ -148,6 +151,14 @@ export function TimelineApp({
   const handleCreateTimeline = ({ title }: TimelineFormValues) => {
     const timeline = createTimeline(title)
     watchPersistence(collection.insert(timeline), 'Timeline created')
+    onSelectTimeline(timeline.id)
+  }
+
+  const handleTimelineImport = (json: string) => {
+    const timeline = importTimelineFromJson(json, {
+      existingIds: timelines.map((candidate) => candidate.id),
+    })
+    watchPersistence(collection.insert(timeline), 'Timeline imported')
     onSelectTimeline(timeline.id)
   }
 
@@ -324,6 +335,16 @@ export function TimelineApp({
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => setTimelineImportOpen(true)}
+            >
+              <IconFileImport />
+              <span className="hidden sm:inline">Import timeline</span>
+              <span className="sm:hidden">Import</span>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               onClick={() => setCreateTimelineOpen(true)}
             >
               <IconPlus />
@@ -391,12 +412,14 @@ export function TimelineApp({
             }
             onEditEvent={(eventId) => setEventDialog({ mode: 'edit', eventId })}
             onEditLayer={(layerId) => setLayerDialog({ mode: 'edit', layerId })}
-            onExport={handleExport}
             onImportEvents={() => setEventImportOpen(true)}
             onMoveLayer={handleMoveLayer}
           />
         ) : (
-          <EmptyState onCreate={() => setCreateTimelineOpen(true)} />
+          <EmptyState
+            onCreate={() => setCreateTimelineOpen(true)}
+            onImport={() => setTimelineImportOpen(true)}
+          />
         )}
       </main>
 
@@ -407,6 +430,11 @@ export function TimelineApp({
         description="Create a blank timeline with one layer to get started."
         submitLabel="Create timeline"
         onSubmit={handleCreateTimeline}
+      />
+      <TimelineImportDialog
+        open={timelineImportOpen}
+        onOpenChange={setTimelineImportOpen}
+        onSubmit={handleTimelineImport}
       />
       <TimelineNameDialog
         open={renameTimelineOpen}
@@ -491,7 +519,6 @@ interface TimelineWorkspaceProps {
   onEditEvent: (eventId: string) => void
   onEditLayer: (layerId: string) => void
   onImportEvents: () => void
-  onExport: () => void
   onMoveLayer: (layerId: string, direction: 'up' | 'down') => void
 }
 
@@ -502,7 +529,6 @@ function TimelineWorkspace({
   onEditEvent,
   onEditLayer,
   onImportEvents,
-  onExport,
   onMoveLayer,
 }: TimelineWorkspaceProps) {
   const range = calculateDateRange(timeline.events)
@@ -529,10 +555,6 @@ function TimelineWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={onExport}>
-            <IconDownload />
-            Export
-          </Button>
           <Button type="button" variant="outline" onClick={onAddLayer}>
             <IconLayersIntersect />
             Add layer
@@ -568,7 +590,13 @@ function TimelineWorkspace({
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  onImport,
+}: {
+  onCreate: () => void
+  onImport: () => void
+}) {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-md flex-col items-center justify-center text-center">
       <div className="mb-5 flex size-11 items-center justify-center border bg-card">
@@ -581,10 +609,16 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Organize events into clear layers and see days or years in one fitted
         view. Your work stays in this browser.
       </p>
-      <Button type="button" className="mt-6" onClick={onCreate}>
-        <IconPlus />
-        New timeline
-      </Button>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Button type="button" onClick={onCreate}>
+          <IconPlus />
+          New timeline
+        </Button>
+        <Button type="button" variant="outline" onClick={onImport}>
+          <IconFileImport />
+          Import timeline
+        </Button>
+      </div>
     </div>
   )
 }

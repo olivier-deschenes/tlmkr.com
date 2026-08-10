@@ -25,5 +25,9 @@ bun --bun run build
 
 ## Deployment
 
-The app produces a Cloudflare Workers-compatible TanStack Start build and is
-published through Sites.
+The app produces a Cloudflare Workers-compatible TanStack Start build. Deploy
+it to your own Cloudflare account with:
+
+```bash
+bun run deploy
+```

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import {
+  IconAlertTriangle,
   IconBrandOpenai,
   IconCopy,
   IconExternalLink,
@@ -108,7 +109,7 @@ export interface EventFormValues {
   endDate: string
 }
 
-interface EventImportFormValues {
+interface JsonImportFormValues {
   json: string
 }
 
@@ -374,10 +375,7 @@ export function EventDialog({
           onCancel={() => onOpenChange(false)}
           onDuplicate={onDuplicate}
           onRequestDelete={onRequestDelete}
-          onSubmit={(values) => {
-            onSubmit(values)
-            onOpenChange(false)
-          }}
+          onSubmit={onSubmit}
         />
       ) : null}
     </Dialog>
@@ -389,6 +387,146 @@ interface EventImportDialogProps {
   onOpenChange: (open: boolean) => void
   chatGptUrl: string
   onSubmit: (json: string) => void
+}
+
+interface TimelineImportDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (json: string) => void
+}
+
+export function TimelineImportDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+}: TimelineImportDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <TimelineImportForm
+          onCancel={() => onOpenChange(false)}
+          onSubmit={onSubmit}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function TimelineImportForm({
+  onCancel,
+  onSubmit,
+}: Pick<TimelineImportDialogProps, 'onSubmit'> & { onCancel: () => void }) {
+  const [importError, setImportError] = useState<string>()
+  const form = useForm({
+    defaultValues: { json: '' } satisfies JsonImportFormValues,
+    validators: { onSubmit: eventImportFormSchema },
+    onSubmit: ({ value }) => {
+      try {
+        onSubmit(value.json)
+        onCancel()
+      } catch (error) {
+        setImportError(
+          error instanceof Error
+            ? error.message
+            : 'The timeline could not be imported.',
+        )
+      }
+    },
+  })
+
+  return (
+    <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Import a complete timeline</DialogTitle>
+        <DialogDescription>
+          Create a new timeline from a full JSON export, including every layer
+          and event. Existing timelines will not be changed.
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setImportError(undefined)
+          void form.handleSubmit()
+        }}
+      >
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="timeline-import-file">
+              Full timeline JSON file
+            </FieldLabel>
+            <Input
+              id="timeline-import-file"
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+                setImportError(undefined)
+                void file
+                  .text()
+                  .then((json) => form.setFieldValue('json', json))
+                  .catch(() =>
+                    setImportError('The selected file could not be read.'),
+                  )
+              }}
+            />
+          </Field>
+          <form.Field name="json">
+            {(field) => {
+              const invalid =
+                field.state.meta.isTouched && !field.state.meta.isValid
+              return (
+                <Field data-invalid={invalid}>
+                  <FieldLabel htmlFor="timeline-import-json">
+                    Or paste full timeline JSON
+                  </FieldLabel>
+                  <Textarea
+                    id="timeline-import-json"
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => {
+                      setImportError(undefined)
+                      field.handleChange(event.target.value)
+                    }}
+                    aria-invalid={invalid || importError !== undefined}
+                    placeholder={
+                      '{\n  "schemaVersion": 1,\n  "id": "...",\n  "title": "...",\n  "createdAt": "...",\n  "updatedAt": "...",\n  "layers": [...],\n  "events": [...]\n}'
+                    }
+                    rows={13}
+                    className="resize-y font-mono text-xs"
+                  />
+                  {invalid ? (
+                    <FieldError errors={field.state.meta.errors} />
+                  ) : null}
+                </Field>
+              )
+            }}
+          </form.Field>
+          {importError ? (
+            <Alert variant="destructive">
+              <IconJson />
+              <AlertTitle>Check the timeline JSON</AlertTitle>
+              <AlertDescription>{importError}</AlertDescription>
+            </Alert>
+          ) : null}
+        </FieldGroup>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="submit">
+            <IconJson />
+            Import timeline
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  )
 }
 
 export function EventImportDialog({
@@ -419,7 +557,7 @@ function EventImportForm({
 }) {
   const [importError, setImportError] = useState<string>()
   const form = useForm({
-    defaultValues: { json: '' } satisfies EventImportFormValues,
+    defaultValues: { json: '' } satisfies JsonImportFormValues,
     validators: { onSubmit: eventImportFormSchema },
     onSubmit: ({ value }) => {
       try {
@@ -550,6 +688,7 @@ function EventForm({
   onDuplicate,
   onRequestDelete,
 }: Omit<EventDialogProps, 'open' | 'onOpenChange'> & { onCancel: () => void }) {
+  const [submitError, setSubmitError] = useState<string>()
   const today = new Date().toISOString().slice(0, 10)
   const initialLayerId = event
     ? event.layerId
@@ -565,16 +704,27 @@ function EventForm({
       endDate: event?.endDate ?? '',
     } satisfies EventFormValues,
     validators: { onSubmit: eventFormSchema },
-    onSubmit: ({ value }) =>
-      onSubmit({
-        title: value.title.trim(),
-        subtitle: value.subtitle.trim(),
-        description: value.description.trim(),
-        color: value.color,
-        layerId: value.layerId,
-        startDate: value.startDate,
-        endDate: value.endDate,
-      }),
+    onSubmit: ({ value }) => {
+      setSubmitError(undefined)
+      try {
+        onSubmit({
+          title: value.title.trim(),
+          subtitle: value.subtitle.trim(),
+          description: value.description.trim(),
+          color: value.color,
+          layerId: value.layerId,
+          startDate: value.startDate,
+          endDate: value.endDate,
+        })
+        onCancel()
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : 'The event could not be saved.',
+        )
+      }
+    },
   })
 
   return (
@@ -651,6 +801,13 @@ function EventForm({
               )}
             </form.Field>
           </div>
+          {submitError ? (
+            <Alert variant="destructive">
+              <IconAlertTriangle />
+              <AlertTitle>Choose different dates</AlertTitle>
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          ) : null}
         </FieldGroup>
         <DialogFooter className="sm:justify-between">
           <div className="flex gap-2">

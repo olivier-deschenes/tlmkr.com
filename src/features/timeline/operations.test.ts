@@ -109,8 +109,64 @@ describe('timeline operations', () => {
       ...timeline.events[0],
       id: COPY_ID,
       title: 'Launch copy',
+      startDate: '2010-05-02',
+      endDate: '2010-06-01',
     })
     expect(duplicated.updatedAt).toBe(LATER)
+  })
+
+  test('rejects overlapping events on the same layer', () => {
+    const timeline = addEvent(
+      timelineWithTwoLayers(),
+      {
+        layerId: LAYER_A_ID,
+        title: 'Launch',
+        color: '#dc2626',
+        startDate: '2010-04-01',
+        endDate: '2010-05-01',
+      },
+      { id: EVENT_ID, now: NOW },
+    )
+
+    expect(() =>
+      addEvent(
+        timeline,
+        {
+          layerId: LAYER_A_ID,
+          title: 'Campaign',
+          color: '#2563eb',
+          startDate: '2010-05-01',
+        },
+        { id: COPY_ID, now: LATER },
+      ),
+    ).toThrow('Events on the same layer cannot share dates')
+
+    const adjacent = addEvent(
+      timeline,
+      {
+        layerId: LAYER_A_ID,
+        title: 'Campaign',
+        color: '#2563eb',
+        startDate: '2010-05-02',
+      },
+      { id: COPY_ID, now: LATER },
+    )
+    expect(() =>
+      updateEvent(adjacent, COPY_ID, { startDate: '2010-05-01' }),
+    ).toThrow('Events on the same layer cannot share dates')
+
+    expect(() =>
+      addEvent(
+        timeline,
+        {
+          layerId: LAYER_B_ID,
+          title: 'Campaign',
+          color: '#2563eb',
+          startDate: '2010-05-01',
+        },
+        { id: COPY_ID, now: LATER },
+      ),
+    ).not.toThrow()
   })
 
   test('moves an event to another layer and cascades layer deletion', () => {
