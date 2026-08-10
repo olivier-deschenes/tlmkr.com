@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import {
   IconAlertTriangle,
+  IconDownload,
+  IconFileTypeCsv,
   IconJson,
   IconDots,
   IconLayersIntersect,
@@ -60,6 +62,10 @@ import {
   updateTimelineTitle,
 } from '#/features/timeline/operations'
 import { getTimelineCollection } from '#/features/timeline/storage'
+import {
+  downloadTimelineExport,
+  type TimelineExportFormat,
+} from '#/features/timeline/timelineExport'
 
 interface TimelineAppProps {
   activeTimelineId?: string
@@ -222,6 +228,14 @@ export function TimelineApp({
     persistTimeline(moveLayer(activeTimeline, layerId, direction))
   }
 
+  const handleExport = (format: TimelineExportFormat) => {
+    if (!activeTimeline) return
+    downloadTimelineExport(activeTimeline, format)
+    toast.success(
+      `Timeline exported as ${format === 'json' ? 'JSON' : 'CSV'}`,
+    )
+  }
+
   const handleDelete = () => {
     if (!deleteIntent) return
 
@@ -340,6 +354,14 @@ export function TimelineApp({
                   >
                     Rename timeline
                   </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => handleExport('json')}>
+                    <IconJson />
+                    Export JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => handleExport('csv')}>
+                    <IconFileTypeCsv />
+                    Export CSV
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"
@@ -379,6 +401,7 @@ export function TimelineApp({
             }
             onEditEvent={(eventId) => setEventDialog({ mode: 'edit', eventId })}
             onEditLayer={(layerId) => setLayerDialog({ mode: 'edit', layerId })}
+            onExport={handleExport}
             onImportEvents={() => setEventImportOpen(true)}
             onMoveLayer={handleMoveLayer}
           />
@@ -478,6 +501,7 @@ interface TimelineWorkspaceProps {
   onEditEvent: (eventId: string) => void
   onEditLayer: (layerId: string) => void
   onImportEvents: () => void
+  onExport: (format: TimelineExportFormat) => void
   onMoveLayer: (layerId: string, direction: 'up' | 'down') => void
 }
 
@@ -488,6 +512,7 @@ function TimelineWorkspace({
   onEditEvent,
   onEditLayer,
   onImportEvents,
+  onExport,
   onMoveLayer,
 }: TimelineWorkspaceProps) {
   const range = calculateDateRange(timeline.events)
@@ -514,6 +539,24 @@ function TimelineWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline">
+                <IconDownload />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onSelect={() => onExport('json')}>
+                <IconJson />
+                Export JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport('csv')}>
+                <IconFileTypeCsv />
+                Export CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button type="button" variant="outline" onClick={onAddLayer}>
             <IconLayersIntersect />
             Add layer
@@ -542,8 +585,8 @@ function TimelineWorkspace({
         onMoveLayer={onMoveLayer}
       />
       <p className="mt-4 text-[11px] leading-4 text-muted-foreground">
-        The full event range is always fitted to the available width. Events
-        that overlap are stacked within their layer.
+        The full event range is fitted to the available width. Labels may be
+        widened for readability; the colored bars preserve the exact dates.
       </p>
     </>
   )

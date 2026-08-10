@@ -44,6 +44,7 @@ export interface PackedTimelineLayout {
 
 export interface TimelineLayoutOptions {
   minimumHitWidth?: number
+  minimumLabelWidth?: number
 }
 
 function parseDate(date: string): number {
@@ -255,6 +256,10 @@ export function layoutTimelineEvents(
   if (!Number.isFinite(minimumHitWidth) || minimumHitWidth <= 0) {
     throw new Error('Minimum event hit width must be greater than zero')
   }
+  const minimumLabelWidth = options.minimumLabelWidth ?? minimumHitWidth
+  if (!Number.isFinite(minimumLabelWidth) || minimumLabelWidth <= 0) {
+    throw new Error('Minimum event label width must be greater than zero')
+  }
 
   return events.map((event) => {
     const startX = dateToPosition(event.startDate, range, width)
@@ -266,7 +271,7 @@ export function layoutTimelineEvents(
     const center = kind === 'duration' ? startX + barWidth / 2 : startX
     const hitArea = fitHitArea(
       center,
-      Math.max(minimumHitWidth, barWidth),
+      Math.max(minimumHitWidth, minimumLabelWidth, barWidth),
       width,
     )
 

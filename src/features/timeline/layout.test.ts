@@ -96,6 +96,26 @@ describe('event layout and collision packing', () => {
     expect(layouts[1].width).toBeGreaterThanOrEqual(32)
   })
 
+  test('widens labels without changing the exact event geometry', () => {
+    const duration = event(
+      '00000000-0000-4000-8000-000000000012',
+      '2020-01-05',
+      '2020-01-06',
+    )
+    const range = calculateDateRange([
+      duration,
+      event('00000000-0000-4000-8000-000000000013', '2021-01-05'),
+    ])!
+    const [layout] = layoutTimelineEvents([duration], range, 900, {
+      minimumLabelWidth: 160,
+    })
+
+    expect(layout.width).toBe(160)
+    expect(layout.barWidth).toBeCloseTo(layout.endX - layout.startX)
+    expect(layout.barWidth).toBeLessThan(layout.width)
+    expect(layout.barLeft).toBe(layout.startX)
+  })
+
   test('puts simultaneous events into separate rows', () => {
     const events = [
       event('00000000-0000-4000-8000-000000000011', '2020-01-05'),

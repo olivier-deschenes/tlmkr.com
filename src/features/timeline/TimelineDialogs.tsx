@@ -803,24 +803,42 @@ function TextareaFormField({
 
 function ColorFormField({ field }: { field: StringFieldController }) {
   const invalid = field.state.meta.isTouched && !field.state.meta.isValid
+  const isValidHex = /^#[0-9a-f]{6}$/i.test(field.state.value)
 
   return (
     <Field data-invalid={invalid}>
-      <FieldLabel htmlFor={field.name}>Color</FieldLabel>
+      <FieldLabel htmlFor={`${field.name}-hex`}>Color</FieldLabel>
       <div className="flex items-center gap-3">
         <Input
-          id={field.name}
-          name={field.name}
+          id={`${field.name}-picker`}
           type="color"
-          value={field.state.value}
+          value={isValidHex ? field.state.value : '#000000'}
           onBlur={field.handleBlur}
           onChange={(event) => field.handleChange(event.target.value)}
           aria-invalid={invalid}
+          aria-label="Color picker"
           className="h-8 w-14 p-1"
         />
-        <span className="font-mono text-xs text-muted-foreground uppercase">
-          {field.state.value}
-        </span>
+        <Input
+          id={`${field.name}-hex`}
+          name={field.name}
+          type="text"
+          value={field.state.value}
+          onBlur={field.handleBlur}
+          onChange={(event) => {
+            const value = event.target.value
+            field.handleChange(
+              value && !value.startsWith('#') ? `#${value}` : value,
+            )
+          }}
+          aria-invalid={invalid}
+          aria-label="Hex color"
+          autoCapitalize="characters"
+          autoComplete="off"
+          maxLength={7}
+          placeholder="#2563EB"
+          className="w-28 font-mono uppercase"
+        />
       </div>
       {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
     </Field>

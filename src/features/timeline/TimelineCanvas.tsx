@@ -26,6 +26,7 @@ import {
   generateTimelineTicks,
   layoutAndPackTimelineEvents,
 } from '#/features/timeline/layout'
+import { formatEventDuration } from '#/features/timeline/duration'
 import type {
   TimelineEvent,
   TimelineLayer,
@@ -33,8 +34,19 @@ import type {
 } from '#/features/timeline/model'
 import type { LayerMoveDirection } from '#/features/timeline/operations'
 
-const EVENT_ROW_HEIGHT = 46
+const EVENT_ROW_HEIGHT = 52
 const LANE_PADDING = 12
+const MINIMUM_EVENT_LABEL_WIDTH = 160
+const tooltipDateFormatter = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+  year: 'numeric',
+})
+
+function formatTooltipDate(date: string): string {
+  return tooltipDateFormatter.format(new Date(`${date}T00:00:00.000Z`))
+}
 
 interface TimelineCanvasProps {
   timeline: TimelineRecord
@@ -263,6 +275,7 @@ function LayerLane({
       range && width > 0
         ? layoutAndPackTimelineEvents(events, range, width, {
             minimumHitWidth: 32,
+            minimumLabelWidth: MINIMUM_EVENT_LABEL_WIDTH,
             gap: 6,
           })
         : { events: [], rowCount: 0 },
@@ -290,13 +303,22 @@ function LayerLane({
       {packed.events.map((layout) => {
         const event = eventById.get(layout.eventId)
         if (!event) return null
+        const startDateLabel = formatTooltipDate(event.startDate)
         const dateLabel = event.endDate
-          ? `${event.startDate} to ${event.endDate}`
-          : event.startDate
+          ? `${startDateLabel} to ${formatTooltipDate(event.endDate)}`
+          : startDateLabel
+        const durationLabel = formatEventDuration(
+          event.startDate,
+          event.endDate,
+        )
         const barOffset = Math.max(0, layout.barLeft - layout.left)
         const barWidth = Math.min(
           layout.barWidth,
           Math.max(2, layout.width - barOffset),
+        )
+        const barCenter = Math.min(
+          layout.width - 1,
+          Math.max(1, barOffset + barWidth / 2),
         )
 
         return (
@@ -304,19 +326,17 @@ function LayerLane({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="group/event absolute h-9 overflow-hidden border bg-background text-left shadow-xs outline-none transition-[box-shadow,transform] hover:z-10 hover:shadow-sm focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60"
+                className="group/event absolute h-11 text-left outline-none hover:z-10 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60"
                 style={{
                   left: layout.left,
                   top: LANE_PADDING + layout.row * EVENT_ROW_HEIGHT,
                   width: layout.width,
-                  borderColor: event.color,
-                  backgroundColor: `color-mix(in srgb, ${event.color} 8%, white)`,
                 }}
                 onClick={() => onEditEvent(event.id)}
                 aria-label={`${event.title}, ${dateLabel}, in ${layer.title}`}
               >
                 <span
-                  className="absolute top-0 h-1"
+                  className="absolute top-0 h-1 rounded-full"
                   style={{
                     left: barOffset,
                     width: barWidth,
@@ -326,7 +346,7 @@ function LayerLane({
                 />
                 {layout.kind === 'point' ? (
                   <span
-                    className="absolute top-0 bottom-0 w-0.5"
+                    className="absolute top-0 h-2 w-0.5"
                     style={{
                       left: Math.max(0, layout.startX - layout.left - 1),
                       backgroundColor: event.color,
@@ -334,14 +354,37 @@ function LayerLane({
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className="block truncate px-2 pt-1.5 text-[11px] font-medium">
-                  {event.title}
-                </span>
-                {layout.width >= 120 && event.subtitle ? (
-                  <span className="block truncate px-2 text-[10px] text-muted-foreground">
-                    {event.subtitle}
+                <span
+                  className="absolute top-1 h-1 w-px"
+                  style={{
+                    left: barCenter,
+                    backgroundColor: event.color,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="absolute inset-x-0 top-2 h-9 overflow-hidden border bg-background/95 px-2 py-1 shadow-xs transition-[border-color,box-shadow,transform] group-hover/event:-translate-y-px group-hover/event:border-foreground/25 group-hover/event:shadow-sm group-focus-visible/event:border-foreground/25">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: event.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="block min-w-0 truncate text-[11px] font-medium">
+                      {event.title}
+                    </span>
                   </span>
-                ) : null}
+                  <span className="flex min-w-0 items-center gap-1 pl-3 text-[10px] text-muted-foreground">
+                    {event.subtitle ? (
+                      <>
+                        <span className="truncate">{event.subtitle}</span>
+                        <span aria-hidden="true">·</span>
+                      </>
+                    ) : null}
+                    <span className="shrink-0 tabular-nums">
+                      {durationLabel}
+                    </span>
+                  </span>
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent sideOffset={6}>
