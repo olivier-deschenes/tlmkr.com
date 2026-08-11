@@ -2,7 +2,10 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   calculateDateRange,
+  createTimelineLayerSegments,
   generateTimelineTicks,
+  layoutTimelineEventCards,
+  layoutTimelineLayerSegments,
   layoutTimelineEvents,
   packTimelineEventLayouts,
 } from './layout'
@@ -143,5 +146,81 @@ describe('event layout and collision packing', () => {
 
     expect(packed.rowCount).toBe(1)
     expect(packed.events.map((layout) => layout.row)).toEqual([0, 0])
+  })
+})
+
+describe('single-line layer segments', () => {
+  test('orders events and inserts duration-aware gaps between them', () => {
+    const events = [
+      event('00000000-0000-4000-8000-000000000012', '2020-01-08', '2020-01-10'),
+      event('00000000-0000-4000-8000-000000000011', '2020-01-01', '2020-01-03'),
+      event('00000000-0000-4000-8000-000000000013', '2020-01-11'),
+    ]
+
+    expect(createTimelineLayerSegments(events)).toEqual([
+      {
+        kind: 'event',
+        eventId: '00000000-0000-4000-8000-000000000011',
+        startDate: '2020-01-01',
+        endDate: '2020-01-03',
+        durationDays: 3,
+      },
+      {
+        kind: 'gap',
+        startDate: '2020-01-04',
+        endDate: '2020-01-07',
+        durationDays: 4,
+      },
+      {
+        kind: 'event',
+        eventId: '00000000-0000-4000-8000-000000000012',
+        startDate: '2020-01-08',
+        endDate: '2020-01-10',
+        durationDays: 3,
+      },
+      {
+        kind: 'event',
+        eventId: '00000000-0000-4000-8000-000000000013',
+        startDate: '2020-01-11',
+        endDate: '2020-01-11',
+        durationDays: 1,
+      },
+    ])
+  })
+
+  test('keeps event and gap widths proportional on one line', () => {
+    const events = [
+      event('00000000-0000-4000-8000-000000000011', '2020-01-01', '2020-01-03'),
+      event('00000000-0000-4000-8000-000000000012', '2020-01-08', '2020-01-10'),
+    ]
+    const range = calculateDateRange(events)!
+    const layouts = layoutTimelineLayerSegments(events, range, 900)
+
+    expect(layouts).toHaveLength(3)
+    expect(layouts[0].width).toBeCloseTo(layouts[2].width)
+    expect(layouts[1].width / layouts[0].width).toBeCloseTo(4 / 3)
+    expect(layouts[1].left).toBeCloseTo(layouts[0].left + layouts[0].width)
+    expect(layouts[2].left).toBeCloseTo(layouts[1].left + layouts[1].width)
+  })
+
+  test('alternates colliding information cards above and below the line', () => {
+    const events = [
+      event('00000000-0000-4000-8000-000000000011', '2020-01-01'),
+      event('00000000-0000-4000-8000-000000000012', '2020-01-02'),
+      event('00000000-0000-4000-8000-000000000013', '2020-01-03'),
+      event('00000000-0000-4000-8000-000000000014', '2020-12-31'),
+    ]
+    const range = calculateDateRange(events)!
+    const layout = layoutTimelineEventCards(events, range, 800)
+
+    expect(
+      layout.cards.slice(0, 3).map(({ side, level }) => ({ side, level })),
+    ).toEqual([
+      { side: 'above', level: 0 },
+      { side: 'below', level: 0 },
+      { side: 'above', level: 1 },
+    ])
+    expect(layout.aboveRowCount).toBe(2)
+    expect(layout.belowRowCount).toBe(1)
   })
 })

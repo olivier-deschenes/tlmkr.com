@@ -24,7 +24,8 @@ import {
 import {
   calculateDateRange,
   generateTimelineTicks,
-  layoutAndPackTimelineEvents,
+  layoutTimelineEventCards,
+  layoutTimelineLayerSegments,
 } from '#/features/timeline/layout'
 import {
   formatEventDuration,
@@ -37,9 +38,13 @@ import type {
 } from '#/features/timeline/model'
 import type { LayerMoveDirection } from '#/features/timeline/operations'
 
-const EVENT_ROW_HEIGHT = 52
-const LANE_PADDING = 12
-const MINIMUM_EVENT_LABEL_WIDTH = 160
+const CARD_HEIGHT = 44
+const CARD_ROW_GAP = 12
+const CARD_ROW_STEP = CARD_HEIGHT + CARD_ROW_GAP
+const CONNECTOR_LENGTH = 12
+const LINE_HEIGHT = 16
+const LANE_PADDING = 16
+const EVENT_HATCH_MARKS = '/'.repeat(512)
 const tooltipDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
   month: 'long',
@@ -278,39 +283,177 @@ function LayerLane({
   onCreateEvent,
   onEditEvent,
 }: LayerLaneProps) {
-  const packed = useMemo(
+  const segments = useMemo(
     () =>
       range && width > 0
-        ? layoutAndPackTimelineEvents(events, range, width, {
-            minimumHitWidth: 32,
-            minimumLabelWidth: MINIMUM_EVENT_LABEL_WIDTH,
-            gap: 6,
-          })
-        : { events: [], rowCount: 0 },
+        ? layoutTimelineLayerSegments(events, range, width)
+        : [],
     [events, range, width],
   )
   const eventById = useMemo(
     () => new Map(events.map((event) => [event.id, event])),
     [events],
   )
-  const height = Math.max(
-    96,
-    packed.rowCount * EVENT_ROW_HEIGHT + LANE_PADDING * 2,
+  const cardLayout = useMemo(
+    () =>
+      range && width > 0
+        ? layoutTimelineEventCards(events, range, width, {
+            minimumLabelWidth: 160,
+            gap: 6,
+          })
+        : { cards: [], aboveRowCount: 0, belowRowCount: 0 },
+    [events, range, width],
   )
+  const aboveHeight = cardLayout.aboveRowCount
+    ? cardLayout.aboveRowCount * CARD_ROW_STEP - CARD_ROW_GAP + CONNECTOR_LENGTH
+    : 0
+  const belowHeight = cardLayout.belowRowCount
+    ? CONNECTOR_LENGTH + cardLayout.belowRowCount * CARD_ROW_STEP - CARD_ROW_GAP
+    : 0
+  const lineTop = LANE_PADDING + aboveHeight
+  const laneHeight = lineTop + LINE_HEIGHT + belowHeight + LANE_PADDING
 
   return (
     <div
       className="relative overflow-hidden border-b bg-card"
-      style={{ minHeight: height }}
+      style={{ minHeight: laneHeight }}
       aria-label={`${layer.title} events`}
     >
       {range ? (
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)] bg-[size:12.5%_100%] opacity-35" />
       ) : null}
 
-      {packed.events.map((layout) => {
-        const event = eventById.get(layout.eventId)
+      {events.length > 0 ? (
+        <span
+          className="pointer-events-none absolute inset-x-0 h-px bg-border"
+          style={{ top: lineTop + LINE_HEIGHT / 2 }}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      {segments.map((layout, index) => {
+        const isFirst = index === 0
+        const isLast = index === segments.length - 1
+        const edgeClasses = `${isFirst ? 'rounded-l-md' : ''} ${isLast ? 'rounded-r-md' : ''}`
+        const dateLabel = `${formatTooltipDate(layout.segment.startDate)} to ${formatTooltipDate(layout.segment.endDate)}`
+        const durationLabel = formatEventDuration(
+          layout.segment.startDate,
+          layout.segment.endDate,
+        )
+
+        if (layout.segment.kind === 'gap') {
+          return (
+            <Tooltip
+              key={`gap-${layout.segment.startDate}-${layout.segment.endDate}`}
+            >
+              <TooltipTrigger asChild>
+                <div
+                  className={`absolute flex items-center justify-center overflow-hidden border-y border-dashed bg-muted/45 px-1 text-muted-foreground outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60 ${edgeClasses}`}
+                  style={{
+                    left: layout.left,
+                    top: lineTop,
+                    width: layout.width,
+                    height: LINE_HEIGHT,
+                  }}
+                  tabIndex={0}
+                  aria-label={`Gap, ${durationLabel}, ${dateLabel}`}
+                >
+                  <span
+                    className="absolute inset-0 opacity-45 [background-image:repeating-linear-gradient(135deg,transparent,transparent_5px,var(--border)_5px,var(--border)_6px)]"
+                    aria-hidden="true"
+                  />
+                  {layout.width >= 52 ? (
+                    <span className="relative truncate text-[10px] font-medium tabular-nums">
+                      {layout.width >= 92 ? 'Gap · ' : ''}
+                      {durationLabel}
+                    </span>
+                  ) : null}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={6}>
+                <span className="font-medium">Gap · {durationLabel}</span>
+                <span className="text-background/70">{dateLabel}</span>
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
+
+        const event = eventById.get(layout.segment.eventId)
         if (!event) return null
+
+        return (
+          <Tooltip key={event.id}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="group/event absolute flex flex-col justify-center overflow-hidden rounded-full border p-0 text-left outline-none transition-[filter,box-shadow,transform] hover:z-10 hover:-translate-y-px hover:brightness-[0.98] hover:shadow-sm focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60 [&>span]:hidden"
+                style={{
+                  left: layout.left,
+                  top: lineTop,
+                  width: layout.width,
+                  height: LINE_HEIGHT,
+                  borderColor: event.color,
+                  backgroundColor: `color-mix(in oklab, ${event.color} 16%, transparent)`,
+                }}
+                onClick={() => onEditEvent(event.id)}
+                aria-label={`${event.title}, ${durationLabel}, ${dateLabel}, in ${layer.title}`}
+              >
+                <span
+                  className="absolute inset-x-2 inset-y-0 !flex items-center overflow-hidden whitespace-nowrap font-mono text-xs leading-none font-normal tracking-[0.75em]"
+                  style={{ color: event.color }}
+                  aria-hidden="true"
+                >
+                  {EVENT_HATCH_MARKS}
+                </span>
+                {layout.width >= 42 ? (
+                  <span className="block w-full truncate text-[11px] font-semibold">
+                    {event.title}
+                  </span>
+                ) : (
+                  <span
+                    className="mx-auto size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: event.color }}
+                    aria-hidden="true"
+                  />
+                )}
+                {layout.width >= 76 ? (
+                  <span className="block w-full truncate text-[10px] text-muted-foreground tabular-nums">
+                    {durationLabel}
+                  </span>
+                ) : null}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent sideOffset={6}>
+              <span className="font-medium">{event.title}</span>
+              <span className="text-background/70">
+                {dateLabel} · {durationLabel}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        )
+      })}
+
+      {cardLayout.cards.map((card) => {
+        const event = eventById.get(card.eventId)
+        if (!event) return null
+
+        const cardTop =
+          card.side === 'above'
+            ? lineTop -
+              CONNECTOR_LENGTH -
+              CARD_HEIGHT -
+              card.level * CARD_ROW_STEP
+            : lineTop +
+              LINE_HEIGHT +
+              CONNECTOR_LENGTH +
+              card.level * CARD_ROW_STEP
+        const anchorY = lineTop + LINE_HEIGHT / 2
+        const connectorTop =
+          card.side === 'above' ? cardTop + CARD_HEIGHT : anchorY
+        const connectorHeight =
+          card.side === 'above'
+            ? anchorY - (cardTop + CARD_HEIGHT)
+            : cardTop - anchorY
         const startDateLabel = formatTooltipDate(event.startDate)
         const dateLabel = event.endDate
           ? `${startDateLabel} to ${formatTooltipDate(event.endDate)}`
@@ -319,58 +462,38 @@ function LayerLane({
           event.startDate,
           event.endDate,
         )
-        const barOffset = Math.max(0, layout.barLeft - layout.left)
-        const barWidth = Math.min(
-          layout.barWidth,
-          Math.max(2, layout.width - barOffset),
-        )
-        const barCenter = Math.min(
-          layout.width - 1,
-          Math.max(1, barOffset + barWidth / 2),
-        )
 
         return (
-          <Tooltip key={event.id}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="group/event absolute h-11 text-left outline-none hover:z-10 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60"
-                style={{
-                  left: layout.left,
-                  top: LANE_PADDING + layout.row * EVENT_ROW_HEIGHT,
-                  width: layout.width,
-                }}
-                onClick={() => onEditEvent(event.id)}
-                aria-label={`${event.title}, ${dateLabel}, in ${layer.title}`}
-              >
-                <span
-                  className="absolute top-0 h-1 rounded-full"
+          <Fragment key={`card-${event.id}`}>
+            <span
+              className="pointer-events-none absolute z-[1] w-0 border-l border-dashed"
+              style={{
+                left: card.anchorX,
+                top: connectorTop,
+                height: connectorHeight,
+                borderColor: event.color,
+              }}
+              aria-hidden="true"
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="group/card absolute z-[2] overflow-hidden border bg-background/95 px-2 py-1 text-left shadow-xs outline-none transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-foreground/25 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring/60"
                   style={{
-                    left: barOffset,
-                    width: barWidth,
-                    backgroundColor: event.color,
+                    left: card.left,
+                    top: cardTop,
+                    width: card.width,
+                    height: CARD_HEIGHT,
                   }}
-                  aria-hidden="true"
-                />
-                {layout.kind === 'point' ? (
+                  onClick={() => onEditEvent(event.id)}
+                  aria-label={`${event.title}, ${dateLabel}, in ${layer.title}`}
+                >
                   <span
-                    className="absolute top-0 h-2 w-0.5"
-                    style={{
-                      left: Math.max(0, layout.startX - layout.left - 1),
-                      backgroundColor: event.color,
-                    }}
+                    className="absolute inset-x-0 top-0 h-1"
+                    style={{ backgroundColor: event.color }}
                     aria-hidden="true"
                   />
-                ) : null}
-                <span
-                  className="absolute top-1 h-1 w-px"
-                  style={{
-                    left: barCenter,
-                    backgroundColor: event.color,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className="absolute inset-x-0 top-2 h-9 overflow-hidden border bg-background/95 px-2 py-1 shadow-xs transition-[border-color,box-shadow,transform] group-hover/event:-translate-y-px group-hover/event:border-foreground/25 group-hover/event:shadow-sm group-focus-visible/event:border-foreground/25">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span
                       className="size-1.5 shrink-0 rounded-full"
@@ -392,14 +515,14 @@ function LayerLane({
                       {durationLabel}
                     </span>
                   </span>
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent sideOffset={6}>
-              <span className="font-medium">{event.title}</span>
-              <span className="text-background/70">{dateLabel}</span>
-            </TooltipContent>
-          </Tooltip>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={6}>
+                <span className="font-medium">{event.title}</span>
+                <span className="text-background/70">{dateLabel}</span>
+              </TooltipContent>
+            </Tooltip>
+          </Fragment>
         )
       })}
 

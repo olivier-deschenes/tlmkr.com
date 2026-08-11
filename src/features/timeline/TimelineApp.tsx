@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
+import { useDebouncer } from '@tanstack/react-pacer/debouncer'
 import {
   IconAlertTriangle,
   IconFileImport,
   IconJson,
   IconDots,
   IconLayersIntersect,
+  IconPencil,
   IconPlus,
   IconTimeline,
   IconTrash,
@@ -28,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { Input } from '#/components/ui/input'
 import { TimelineCanvas } from '#/features/timeline/TimelineCanvas'
 import {
   ConfirmDeleteDialog,
@@ -103,7 +106,6 @@ export function TimelineApp({
 
   const [createTimelineOpen, setCreateTimelineOpen] = useState(false)
   const [timelineImportOpen, setTimelineImportOpen] = useState(false)
-  const [renameTimelineOpen, setRenameTimelineOpen] = useState(false)
   const [layerDialog, setLayerDialog] = useState<LayerDialogState>(null)
   const [eventDialog, setEventDialog] = useState<EventDialogState>(null)
   const [eventImportOpen, setEventImportOpen] = useState(false)
@@ -162,12 +164,9 @@ export function TimelineApp({
     onSelectTimeline(timeline.id)
   }
 
-  const handleRenameTimeline = ({ title }: TimelineFormValues) => {
-    if (!activeTimeline) return
-    persistTimeline(
-      updateTimelineTitle(activeTimeline, title),
-      'Timeline renamed',
-    )
+  const handleRenameTimeline = (title: string) => {
+    if (!activeTimeline || title.trim() === activeTimeline.title) return
+    persistTimeline(updateTimelineTitle(activeTimeline, title))
   }
 
   const handleLayerSubmit = (values: LayerFormValues) => {
@@ -364,11 +363,6 @@ export function TimelineApp({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem
-                    onSelect={() => setRenameTimelineOpen(true)}
-                  >
-                    Rename timeline
-                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={handleExport}>
                     <IconJson />
                     Export timeline
@@ -405,7 +399,9 @@ export function TimelineApp({
 
         {activeTimeline ? (
           <TimelineWorkspace
+            key={activeTimeline.id}
             timeline={activeTimeline}
+            onRename={handleRenameTimeline}
             onAddLayer={() => setLayerDialog({ mode: 'new' })}
             onCreateEvent={(layerId) =>
               setEventDialog({ mode: 'new', layerId })
@@ -435,15 +431,6 @@ export function TimelineApp({
         open={timelineImportOpen}
         onOpenChange={setTimelineImportOpen}
         onSubmit={handleTimelineImport}
-      />
-      <TimelineNameDialog
-        open={renameTimelineOpen}
-        onOpenChange={setRenameTimelineOpen}
-        title="Rename timeline"
-        description="Use a clear title to identify this timeline in the list."
-        submitLabel="Save changes"
-        initialTitle={activeTimeline?.title}
-        onSubmit={handleRenameTimeline}
       />
       {activeTimeline ? (
         <>
@@ -514,6 +501,7 @@ export function TimelineApp({
 
 interface TimelineWorkspaceProps {
   timeline: TimelineRecord
+  onRename: (title: string) => void
   onAddLayer: () => void
   onCreateEvent: (layerId: string) => void
   onEditEvent: (eventId: string) => void
@@ -524,6 +512,7 @@ interface TimelineWorkspaceProps {
 
 function TimelineWorkspace({
   timeline,
+  onRename,
   onAddLayer,
   onCreateEvent,
   onEditEvent,
@@ -539,13 +528,11 @@ function TimelineWorkspace({
   return (
     <>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="mb-2 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
             Browser-local timeline
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {timeline.title}
-          </h1>
+          <TimelineTitleInput title={timeline.title} onRename={onRename} />
           <p className="mt-2 text-xs text-muted-foreground">
             {timeline.layers.length}{' '}
             {timeline.layers.length === 1 ? 'layer' : 'layers'} ·{' '}
@@ -587,6 +574,66 @@ function TimelineWorkspace({
         widened for readability; the colored bars preserve the exact dates.
       </p>
     </>
+  )
+}
+
+function TimelineTitleInput({
+  title,
+  onRename,
+}: {
+  title: string
+  onRename: (title: string) => void
+}) {
+  const [draftTitle, setDraftTitle] = useState(title)
+  const renameDebouncer = useDebouncer(onRename, {
+    wait: 500,
+    onUnmount: (debouncer) => debouncer.flush(),
+  })
+
+  useEffect(() => {
+    setDraftTitle(title)
+  }, [title])
+
+  return (
+    <div className="group/title relative -ml-2 inline-flex max-w-full items-center">
+      <h1 className="min-w-0">
+        <Input
+          aria-label="Timeline title"
+          autoComplete="off"
+          className="h-auto w-auto min-w-40 max-w-full border-0 border-b border-transparent bg-transparent px-2 py-1 pr-8 text-2xl font-semibold tracking-tight shadow-none hover:border-input focus-visible:border-ring focus-visible:bg-transparent focus-visible:ring-0 sm:text-3xl md:text-3xl dark:bg-transparent"
+          size={Math.min(Math.max(draftTitle.length, 12), 60)}
+          value={draftTitle}
+          onBlur={() => {
+            const nextTitle = draftTitle.trim()
+            if (!nextTitle) {
+              renameDebouncer.cancel()
+              setDraftTitle(title)
+              return
+            }
+            setDraftTitle(nextTitle)
+            renameDebouncer.maybeExecute(nextTitle)
+            renameDebouncer.flush()
+          }}
+          onChange={(event) => {
+            const nextTitle = event.target.value
+            setDraftTitle(nextTitle)
+            if (!nextTitle.trim()) {
+              renameDebouncer.cancel()
+              return
+            }
+            renameDebouncer.maybeExecute(nextTitle)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') {
+              renameDebouncer.cancel()
+              setDraftTitle(title)
+            }
+          }}
+        />
+      </h1>
+      <IconPencil className="pointer-events-none absolute right-2 size-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-70 group-focus-within/title:opacity-70" />
+    </div>
   )
 }
 
