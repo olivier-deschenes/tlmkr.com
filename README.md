@@ -1,32 +1,22 @@
 # Timeline Maker
 
-A minimalist, browser-local timeline editor built with TanStack Start, TanStack
-Router, TanStack Form, TanStack DB, shadcn/ui, and Tailwind CSS.
+A simple, private timeline editor that runs entirely in your browser.
 
-Timelines are stored only in the current browser. The app has no account,
-backend database, cloud sync, or timeline-sharing feature.
+**[Open Timeline Maker](https://timeline.odeschenes.dev/)**
+
+Your timelines stay in your browser—no account, cloud sync, or backend database.
 
 ## Development
 
 ```bash
 bun install
-bun --bun run dev
-```
-
-## Validation
-
-```bash
-bun run test
-bun run typecheck
-bun run lint
-bun run check
-bun --bun run build
+bun run dev
 ```
 
 ## Deployment
 
-The app produces a Cloudflare Workers-compatible TanStack Start build. Deploy
-it to your own Cloudflare account with:
+The app is hosted on Cloudflare Workers. This command creates a production build
+and deploys it to Cloudflare using Wrangler:
 
 ```bash
 bun run deploy
