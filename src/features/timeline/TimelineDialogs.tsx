@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import {
   IconAlertTriangle,
   IconBrandOpenai,
+  IconCheck,
   IconCopy,
   IconExternalLink,
   IconJson,
+  IconLayersIntersect,
+  IconShieldLock,
   IconTrash,
 } from '@tabler/icons-react'
 import { z } from 'zod'
@@ -46,7 +49,13 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
-import type { TimelineEvent, TimelineLayer } from '#/features/timeline/model'
+import type {
+  TimelineEvent,
+  TimelineLayer,
+  TimelineRecord,
+} from '#/features/timeline/model'
+import { createShareUrl } from '#/features/timeline/share'
+import { shortcutDefinitions } from '#/features/timeline/shortcuts'
 
 const titleSchema = z.string().trim().min(1, 'A title is required.')
 const colorSchema = z.string().regex(/^#[0-9a-f]{6}$/i, 'Choose a valid color.')
@@ -351,6 +360,11 @@ interface EventDialogProps {
   defaultLayerId?: string
   onSubmit: (values: EventFormValues) => void
   onDuplicate?: () => void
+  /**
+   * Places the event on a brand new layer in one step. Creating the layer and
+   * then resubmitting would race the store, so the caller does both together.
+   */
+  onMoveToNewLayer?: (values: EventFormValues) => void
   onRequestDelete?: () => void
 }
 
@@ -362,6 +376,7 @@ export function EventDialog({
   defaultLayerId,
   onSubmit,
   onDuplicate,
+  onMoveToNewLayer,
   onRequestDelete,
 }: EventDialogProps) {
   return (
@@ -374,6 +389,7 @@ export function EventDialog({
           defaultLayerId={defaultLayerId}
           onCancel={() => onOpenChange(false)}
           onDuplicate={onDuplicate}
+          onMoveToNewLayer={onMoveToNewLayer}
           onRequestDelete={onRequestDelete}
           onSubmit={onSubmit}
         />
@@ -686,6 +702,7 @@ function EventForm({
   onCancel,
   onSubmit,
   onDuplicate,
+  onMoveToNewLayer,
   onRequestDelete,
 }: Omit<EventDialogProps, 'open' | 'onOpenChange'> & { onCancel: () => void }) {
   const [submitError, setSubmitError] = useState<string>()
@@ -804,8 +821,37 @@ function EventForm({
           {submitError ? (
             <Alert variant="destructive">
               <IconAlertTriangle />
-              <AlertTitle>Choose different dates</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
+              <AlertTitle>This overlaps another event</AlertTitle>
+              <AlertDescription>
+                <p>{submitError}</p>
+                <p>
+                  Events on one layer cannot share dates. Move this event to its
+                  own layer to run the two in parallel, or change the dates.
+                </p>
+                {onMoveToNewLayer ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const value = form.state.values
+                      onMoveToNewLayer({
+                        title: value.title.trim(),
+                        subtitle: value.subtitle.trim(),
+                        description: value.description.trim(),
+                        color: value.color,
+                        layerId: value.layerId,
+                        startDate: value.startDate,
+                        endDate: value.endDate,
+                      })
+                      onCancel()
+                    }}
+                  >
+                    <IconLayersIntersect />
+                    Move to a new layer
+                  </Button>
+                ) : null}
+              </AlertDescription>
             </Alert>
           ) : null}
         </FieldGroup>
@@ -1033,5 +1079,205 @@ function DateFormField({
       />
       {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
     </Field>
+  )
+}
+
+interface ShareDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  timeline: TimelineRecord
+}
+
+export function ShareDialog({
+  open,
+  onOpenChange,
+  timeline,
+}: ShareDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <ShareDialogBody
+          timeline={timeline}
+          onClose={() => onOpenChange(false)}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function ShareDialogBody({
+  timeline,
+  onClose,
+}: {
+  timeline: TimelineRecord
+  onClose: () => void
+}) {
+  const [url, setUrl] = useState<string>()
+  const [error, setError] = useState<string>()
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void createShareUrl(timeline, window.location.origin)
+      .then((shareUrl) => {
+        if (!cancelled) setUrl(shareUrl)
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'This timeline could not be turned into a link.',
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [timeline])
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  return (
+    <DialogContent className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Share this timeline</DialogTitle>
+        <DialogDescription>
+          The whole timeline is packed into the link itself, so anyone with the
+          link can read it without an account.
+        </DialogDescription>
+      </DialogHeader>
+
+      <Alert>
+        <IconShieldLock />
+        <AlertTitle>Still no server involved</AlertTitle>
+        <AlertDescription>
+          The timeline travels in the part of the URL after the <code>#</code>,
+          which browsers never send to a server. Whoever you send the link to
+          can read the timeline, so treat the link itself as the secret.
+        </AlertDescription>
+      </Alert>
+
+      <FieldGroup>
+        {error ? (
+          <Alert variant="destructive">
+            <IconAlertTriangle />
+            <AlertTitle>This timeline is too big to share as a link</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : (
+          <Field>
+            <FieldLabel htmlFor="share-url">Share link</FieldLabel>
+            <div className="flex items-center gap-2">
+              <Input
+                id="share-url"
+                readOnly
+                value={url ?? 'Building the link…'}
+                onFocus={(event) => event.currentTarget.select()}
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!url}
+                onClick={() => {
+                  if (!url) return
+                  void navigator.clipboard
+                    .writeText(url)
+                    .then(() => setCopied(true))
+                    .catch(() =>
+                      setError(
+                        'The link could not be copied. Select it and copy manually.',
+                      ),
+                    )
+                }}
+              >
+                {copied ? <IconCheck /> : <IconCopy />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </Field>
+        )}
+      </FieldGroup>
+
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogClose>
+      </DialogFooter>
+    </DialogContent>
+  )
+}
+
+interface ShortcutsDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
+  const [isApple, setIsApple] = useState(false)
+
+  useEffect(() => {
+    setIsApple(/Mac|iPhone|iPad/.test(navigator.userAgent))
+  }, [])
+
+  const groups = ['Editing', 'View', 'General'] as const
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogDescription>
+            These work whenever you are not typing in a field.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5">
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="mb-2 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
+                {group}
+              </p>
+              <ul className="space-y-1.5">
+                {shortcutDefinitions
+                  .filter((shortcut) => shortcut.group === group)
+                  .map((shortcut) => (
+                    <li
+                      key={shortcut.description}
+                      className="flex items-center justify-between gap-4 text-sm"
+                    >
+                      <span>{shortcut.description}</span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        {shortcut.keys.map((key) => (
+                          <kbd
+                            key={key}
+                            className="min-w-6 border bg-muted px-1.5 py-0.5 text-center font-mono text-[11px] text-muted-foreground"
+                          >
+                            {key === 'Mod' ? (isApple ? '⌘' : 'Ctrl') : key}
+                          </kbd>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Close
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

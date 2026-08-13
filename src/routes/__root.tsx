@@ -8,6 +8,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestUrl } from '@tanstack/react-start/server'
+import { ThemeProvider } from 'next-themes'
 
 import { Toaster } from '#/components/ui/sonner'
 import { Button } from '#/components/ui/button'
@@ -93,12 +94,21 @@ function NotFoundPage() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // next-themes sets the class on <html> before paint, which the server
+    // render cannot match; the warning it would raise is expected here.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
         <Toaster position="bottom-right" />
         {import.meta.env.DEV ? (
           <TanStackDevtools
