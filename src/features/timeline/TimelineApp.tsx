@@ -303,17 +303,11 @@ export function TimelineApp({
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
-          <a
-            href="/"
-            className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight"
-          >
-            <IconTimeline className="size-4" />
-            <span className="hidden sm:inline">tlmkr.com</span>
-          </a>
+          <TimelineBrand />
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {timelines.length > 0 ? (
               <Select
-                value={activeTimelineId}
+                value={activeTimeline?.id ?? ''}
                 onValueChange={(timelineId) => onSelectTimeline(timelineId)}
               >
                 <SelectTrigger
@@ -595,7 +589,7 @@ function TimelineTitleInput({
   }, [title])
 
   return (
-    <div className="group/title relative -ml-2 inline-flex max-w-full items-center">
+    <div className="timeline-title-shell group/title relative -ml-2 inline-flex max-w-full items-center">
       <h1 className="min-w-0">
         <Input
           aria-label="Timeline title"
@@ -634,6 +628,32 @@ function TimelineTitleInput({
       </h1>
       <IconPencil className="pointer-events-none absolute right-2 size-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-70 group-focus-within/title:opacity-70" />
     </div>
+  )
+}
+
+function TimelineBrand() {
+  return (
+    <a
+      href="/"
+      aria-label="tlmkr.com home"
+      className="tlmkr-brand flex shrink-0 items-center gap-2 rounded-sm text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <IconTimeline aria-hidden="true" className="tlmkr-brand-icon size-4" />
+      <span className="tlmkr-wordmark hidden sm:inline-flex" aria-hidden="true">
+        {Array.from('tlmkr.com').map((character, index) => (
+          <span
+            key={`${character}-${index}`}
+            className="tlmkr-letter"
+            style={{ animationDelay: `${index * 32}ms` }}
+          >
+            {character}
+          </span>
+        ))}
+        <span className="tlmkr-rail">
+          <span className="tlmkr-playhead" />
+        </span>
+      </span>
+    </a>
   )
 }
 

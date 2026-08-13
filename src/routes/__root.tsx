@@ -1,10 +1,16 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Link,
+  Scripts,
+  createRootRoute,
+} from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestUrl } from '@tanstack/react-start/server'
 
 import { Toaster } from '#/components/ui/sonner'
+import { Button } from '#/components/ui/button'
 
 import appCss from '../styles.css?url'
 
@@ -60,8 +66,30 @@ export const Route = createRootRoute({
       ],
     }
   },
+  notFoundComponent: NotFoundPage,
   shellComponent: RootDocument,
 })
+
+function NotFoundPage() {
+  return (
+    <main className="grid min-h-screen place-items-center px-6 text-center">
+      <div>
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+          404
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+          This timeline went off track.
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We couldn’t find this page.
+        </p>
+        <Button asChild className="mt-6">
+          <Link to="/">Back to tlmkr.com</Link>
+        </Button>
+      </div>
+    </main>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
