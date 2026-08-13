@@ -2,12 +2,23 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   calculateDateRange,
+  centerViewRangeOn,
+  clampViewRange,
+  createDateRange,
   createTimelineLayerSegments,
+  frameViewRange,
   generateTimelineTicks,
+  isFittedToContent,
   layoutTimelineEventCards,
   layoutTimelineLayerSegments,
   layoutTimelineEvents,
   packTimelineEventLayouts,
+  panViewRange,
+  resolveMinimumLabelWidth,
+  todayIsoDate,
+  zoomViewRange,
+  DAY_IN_MS,
+  MINIMUM_VIEW_DAYS,
 } from './layout'
 import type { TimelineEvent } from './model'
 
@@ -222,5 +233,159 @@ describe('single-line layer segments', () => {
     ])
     expect(layout.aboveRowCount).toBe(2)
     expect(layout.belowRowCount).toBe(1)
+  })
+})
+
+describe('viewport zoom and pan', () => {
+  const content = calculateDateRange([
+    event('00000000-0000-4000-8000-000000000011', '2020-01-01'),
+    event('00000000-0000-4000-8000-000000000012', '2020-12-31'),
+  ])!
+
+  test('zooming in keeps the anchored date under the same position', () => {
+    const zoomed = zoomViewRange(content, content, 0.5, 0.25)
+    const anchorMs = content.startMs + (content.endMs - content.startMs) * 0.25
+
+    expect(zoomed.endMs - zoomed.startMs).toBeCloseTo(
+      (content.endMs - content.startMs) / 2,
+      -3,
+    )
+    expect(
+      (anchorMs - zoomed.startMs) / (zoomed.endMs - zoomed.startMs),
+    ).toBeCloseTo(0.25, 5)
+  })
+
+  test('never zooms out past the content or in past the minimum span', () => {
+    expect(isFittedToContent(zoomViewRange(content, content, 8), content)).toBe(
+      true,
+    )
+
+    const tightest = zoomViewRange(content, content, 0.0001)
+    expect(tightest.endMs - tightest.startMs).toBe(
+      MINIMUM_VIEW_DAYS * DAY_IN_MS,
+    )
+  })
+
+  test('panning stops at the content edges instead of drifting', () => {
+    const zoomed = zoomViewRange(content, content, 0.25)
+
+    expect(panViewRange(zoomed, content, -10).startMs).toBe(content.startMs)
+    expect(panViewRange(zoomed, content, 10).endMs).toBe(content.endMs)
+  })
+
+  test('panning preserves the zoom level', () => {
+    const zoomed = zoomViewRange(content, content, 0.25)
+    const panned = panViewRange(zoomed, content, 0.2)
+
+    expect(panned.endMs - panned.startMs).toBeCloseTo(
+      zoomed.endMs - zoomed.startMs,
+      5,
+    )
+  })
+
+  test('clamps a viewport that is wider than its content', () => {
+    const tooWide = createDateRange(
+      content.startMs - 5 * DAY_IN_MS,
+      content.endMs + 5 * DAY_IN_MS,
+    )
+
+    expect(clampViewRange(tooWide, content)).toEqual(content)
+  })
+
+  test('centers on a date without changing the zoom level', () => {
+    const zoomed = zoomViewRange(content, content, 0.25)
+    const centered = centerViewRangeOn(zoomed, content, '2020-07-01')
+    const center = (centered.startMs + centered.endMs) / 2
+
+    expect(centered.endMs - centered.startMs).toBeCloseTo(
+      zoomed.endMs - zoomed.startMs,
+      5,
+    )
+    expect(center).toBeCloseTo(Date.parse('2020-07-01T00:00:00.000Z'), -6)
+  })
+
+  test('frames a span with padding on both sides', () => {
+    const framed = frameViewRange('2020-06-01', '2020-06-30', content)
+
+    expect(framed.startMs).toBeLessThan(Date.parse('2020-06-01T00:00:00.000Z'))
+    expect(framed.endMs).toBeGreaterThan(Date.parse('2020-06-30T00:00:00.000Z'))
+    expect(isFittedToContent(framed, content)).toBe(false)
+  })
+})
+
+describe('viewport culling', () => {
+  const events = [
+    event('00000000-0000-4000-8000-000000000011', '2020-01-01', '2020-01-10'),
+    event('00000000-0000-4000-8000-000000000012', '2020-06-01', '2020-06-10'),
+    event('00000000-0000-4000-8000-000000000013', '2020-12-01', '2020-12-10'),
+  ]
+
+  test('drops events outside the viewport instead of stacking them on an edge', () => {
+    const view = createDateRange(
+      Date.parse('2020-05-01T00:00:00.000Z'),
+      Date.parse('2020-07-01T00:00:00.000Z'),
+    )
+    const layouts = layoutTimelineLayerSegments(events, view, 900)
+    const visibleIds = layouts.flatMap((layout) =>
+      layout.segment.kind === 'event' ? [layout.segment.eventId] : [],
+    )
+
+    expect(visibleIds).toEqual(['00000000-0000-4000-8000-000000000012'])
+  })
+
+  test('keeps an event that straddles the viewport edge', () => {
+    const view = createDateRange(
+      Date.parse('2020-06-05T00:00:00.000Z'),
+      Date.parse('2020-08-01T00:00:00.000Z'),
+    )
+    const [first] = layoutTimelineLayerSegments(events, view, 900)
+
+    expect(first.segment).toMatchObject({
+      kind: 'event',
+      eventId: '00000000-0000-4000-8000-000000000012',
+    })
+    expect(first.left).toBe(0)
+    expect(first.width).toBeGreaterThan(0)
+  })
+
+  test('culls cards along with their segments', () => {
+    const view = createDateRange(
+      Date.parse('2020-05-01T00:00:00.000Z'),
+      Date.parse('2020-07-01T00:00:00.000Z'),
+    )
+
+    expect(layoutTimelineEventCards(events, view, 900).cards).toHaveLength(1)
+  })
+})
+
+describe('responsive label width', () => {
+  test('shrinks with the lane but stays legible', () => {
+    expect(resolveMinimumLabelWidth(1200)).toBe(160)
+    expect(resolveMinimumLabelWidth(400)).toBe(120)
+    expect(resolveMinimumLabelWidth(200)).toBe(84)
+  })
+
+  test('a narrow lane stacks into fewer rows than the old fixed floor', () => {
+    const narrowEvents = [
+      event('00000000-0000-4000-8000-000000000011', '2020-01-01'),
+      event('00000000-0000-4000-8000-000000000012', '2020-04-01'),
+      event('00000000-0000-4000-8000-000000000013', '2020-07-01'),
+      event('00000000-0000-4000-8000-000000000014', '2020-10-01'),
+    ]
+    const range = calculateDateRange(narrowEvents)!
+    const rowCount = (options?: { minimumLabelWidth: number }) => {
+      const layout = layoutTimelineEventCards(narrowEvents, range, 340, options)
+      return layout.aboveRowCount + layout.belowRowCount
+    }
+
+    expect(rowCount()).toBeLessThan(rowCount({ minimumLabelWidth: 160 }))
+  })
+})
+
+describe('today', () => {
+  test('reads the UTC calendar date', () => {
+    expect(todayIsoDate(new Date('2024-03-05T23:30:00.000Z'))).toBe(
+      '2024-03-05',
+    )
   })
 })

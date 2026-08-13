@@ -41,7 +41,8 @@ export function downloadTimelineExport(timeline: TimelineRecord): void {
   URL.revokeObjectURL(url)
 }
 
-function createExportBasename(title: string): string {
+/** Turns a title into a safe, readable download filename stem. */
+export function createExportBasename(title: string): string {
   const normalized = title
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')

@@ -88,6 +88,76 @@ export interface TimelineLayoutOptions {
   minimumLabelWidth?: number
 }
 
+/**
+ * Lane geometry in pixels, shared by the interactive canvas and the image
+ * exporter so an exported timeline matches what the editor showed.
+ */
+export const TIMELINE_GEOMETRY = {
+  cardHeight: 44,
+  cardRowGap: 12,
+  connectorLength: 12,
+  lineHeight: 16,
+  lanePadding: 16,
+} as const
+
+export const CARD_ROW_STEP =
+  TIMELINE_GEOMETRY.cardHeight + TIMELINE_GEOMETRY.cardRowGap
+
+export interface LaneMetrics {
+  /** Distance from the top of the lane to the top of the event rail. */
+  lineTop: number
+  /** Vertical centre of the event rail. */
+  anchorY: number
+  height: number
+}
+
+export function calculateLaneMetrics(
+  layout: Pick<
+    TimelineEventCardLayoutResult,
+    'aboveRowCount' | 'belowRowCount'
+  >,
+): LaneMetrics {
+  const { cardRowGap, connectorLength, lanePadding, lineHeight } =
+    TIMELINE_GEOMETRY
+  const aboveHeight = layout.aboveRowCount
+    ? layout.aboveRowCount * CARD_ROW_STEP - cardRowGap + connectorLength
+    : 0
+  const belowHeight = layout.belowRowCount
+    ? connectorLength + layout.belowRowCount * CARD_ROW_STEP - cardRowGap
+    : 0
+  const lineTop = lanePadding + aboveHeight
+
+  return {
+    lineTop,
+    anchorY: lineTop + lineHeight / 2,
+    height: lineTop + lineHeight + belowHeight + lanePadding,
+  }
+}
+
+/** Vertical offset of a card within its lane. */
+export function calculateCardTop(
+  card: Pick<TimelineEventCardLayout, 'side' | 'level'>,
+  metrics: LaneMetrics,
+): number {
+  const { cardHeight, connectorLength, lineHeight } = TIMELINE_GEOMETRY
+
+  return card.side === 'above'
+    ? metrics.lineTop -
+        connectorLength -
+        cardHeight -
+        card.level * CARD_ROW_STEP
+    : metrics.lineTop +
+        lineHeight +
+        connectorLength +
+        card.level * CARD_ROW_STEP
+}
+
+/** The narrowest span the viewport may be zoomed to, in days. */
+export const MINIMUM_VIEW_DAYS = 3
+
+/** Multiplier applied by a single zoom-in step. */
+export const ZOOM_STEP = 1.6
+
 function parseDate(date: string): number {
   return Date.parse(`${date}T00:00:00.000Z`)
 }
@@ -99,6 +169,11 @@ function formatDate(timestamp: number): string {
 function addDays(date: string, days: number): string {
   return formatDate(parseDate(date) + days * DAY_IN_MS)
 }
+
+/** Shared calendar helpers so date math stays in one place. */
+export const parseIsoDate = parseDate
+export const formatIsoDate = formatDate
+export const addDaysToDate = addDays
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
@@ -137,6 +212,136 @@ export function calculateDateRange(
 }
 
 export const deriveTimelineDateRange = calculateDateRange
+
+/** Builds a range from arbitrary bounds, which need not fall on day boundaries. */
+export function createDateRange(
+  startMs: number,
+  endMs: number,
+): TimelineDateRange {
+  return {
+    startDate: formatDate(startMs),
+    endDate: formatDate(endMs),
+    startMs,
+    endMs,
+    totalDays: (endMs - startMs) / DAY_IN_MS,
+  }
+}
+
+/**
+ * Keeps a viewport inside the content it describes: never narrower than
+ * `MINIMUM_VIEW_DAYS`, never wider than the content, and never scrolled past
+ * either edge. Panning therefore stops at the ends instead of drifting into
+ * empty space.
+ */
+export function clampViewRange(
+  view: TimelineDateRange,
+  content: TimelineDateRange,
+): TimelineDateRange {
+  const contentSpan = content.endMs - content.startMs
+  const minimumSpan = Math.min(contentSpan, MINIMUM_VIEW_DAYS * DAY_IN_MS)
+  const span = clamp(view.endMs - view.startMs, minimumSpan, contentSpan)
+  const startMs = clamp(view.startMs, content.startMs, content.endMs - span)
+
+  return createDateRange(startMs, startMs + span)
+}
+
+/**
+ * Scales the viewport around `anchorRatio`, the horizontal position under the
+ * pointer expressed as a fraction of the width. A factor below one zooms in.
+ */
+export function zoomViewRange(
+  view: TimelineDateRange,
+  content: TimelineDateRange,
+  factor: number,
+  anchorRatio = 0.5,
+): TimelineDateRange {
+  if (!Number.isFinite(factor) || factor <= 0) {
+    throw new Error('Zoom factor must be greater than zero')
+  }
+
+  const anchor = clamp(anchorRatio, 0, 1)
+  const span = view.endMs - view.startMs
+  const anchorMs = view.startMs + span * anchor
+  const nextSpan = span * factor
+
+  return clampViewRange(
+    createDateRange(
+      anchorMs - nextSpan * anchor,
+      anchorMs + nextSpan * (1 - anchor),
+    ),
+    content,
+  )
+}
+
+/** Slides the viewport by a fraction of its own span without changing zoom. */
+export function panViewRange(
+  view: TimelineDateRange,
+  content: TimelineDateRange,
+  deltaRatio: number,
+): TimelineDateRange {
+  const offset = (view.endMs - view.startMs) * deltaRatio
+  return clampViewRange(
+    createDateRange(view.startMs + offset, view.endMs + offset),
+    content,
+  )
+}
+
+/** True when the viewport still shows the whole timeline. */
+export function isFittedToContent(
+  view: TimelineDateRange,
+  content: TimelineDateRange,
+): boolean {
+  return view.startMs <= content.startMs && view.endMs >= content.endMs
+}
+
+/** Centers the viewport on a date, keeping the current zoom level. */
+export function centerViewRangeOn(
+  view: TimelineDateRange,
+  content: TimelineDateRange,
+  date: string,
+): TimelineDateRange {
+  const span = view.endMs - view.startMs
+  const center = parseDate(date)
+  return clampViewRange(
+    createDateRange(center - span / 2, center + span / 2),
+    content,
+  )
+}
+
+/** Frames a date span with breathing room on both sides. */
+export function frameViewRange(
+  startDate: string,
+  endDate: string,
+  content: TimelineDateRange,
+  paddingRatio = 0.25,
+): TimelineDateRange {
+  const startMs = parseDate(startDate)
+  const endMs = parseDate(addDays(endDate, 1))
+  const padding = Math.max((endMs - startMs) * paddingRatio, DAY_IN_MS)
+
+  return clampViewRange(
+    createDateRange(startMs - padding, endMs + padding),
+    content,
+  )
+}
+
+export function isDateInRange(date: string, range: TimelineDateRange): boolean {
+  const timestamp = parseDate(date)
+  return timestamp >= range.startMs && timestamp <= range.endMs
+}
+
+/** Today in UTC, matching the calendar dates stored on events. */
+export function todayIsoDate(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10)
+}
+
+/**
+ * Cards need enough room for a title, but a fixed floor swallows narrow lanes
+ * on phones. Scale with the lane and stop at a legible minimum.
+ */
+export function resolveMinimumLabelWidth(width: number): number {
+  return clamp(width * 0.3, 84, 160)
+}
 
 export function dateToPosition(
   date: string,
@@ -332,20 +537,36 @@ export function layoutTimelineLayerSegments(
 ): TimelineLayerSegmentLayout[] {
   assertWidth(width)
 
-  return createTimelineLayerSegments(events).map((segment) => {
-    const left = dateToPosition(segment.startDate, range, width)
-    const endExclusive = dateToPosition(
-      addDays(segment.endDate, 1),
-      range,
-      width,
-    )
+  return createTimelineLayerSegments(events)
+    .filter((segment) => segmentIntersectsRange(segment, range))
+    .map((segment) => {
+      const left = dateToPosition(segment.startDate, range, width)
+      const endExclusive = dateToPosition(
+        addDays(segment.endDate, 1),
+        range,
+        width,
+      )
 
-    return {
-      segment,
-      left,
-      width: Math.max(1, endExclusive - left),
-    }
-  })
+      return {
+        segment,
+        left,
+        width: Math.max(1, endExclusive - left),
+      }
+    })
+}
+
+/**
+ * `dateToPosition` clamps to the viewport, which correctly stretches a segment
+ * that straddles an edge but would otherwise pile every off-screen segment onto
+ * one of the two edges. Dropping them first keeps a zoomed-in view honest.
+ */
+function segmentIntersectsRange(
+  segment: TimelineLayerSegment,
+  range: TimelineDateRange,
+): boolean {
+  const startMs = parseDate(segment.startDate)
+  const endExclusiveMs = parseDate(addDays(segment.endDate, 1))
+  return endExclusiveMs > range.startMs && startMs < range.endMs
 }
 
 export function layoutTimelineEventCards(
@@ -355,7 +576,8 @@ export function layoutTimelineEventCards(
   options: { minimumLabelWidth?: number; gap?: number } = {},
 ): TimelineEventCardLayoutResult {
   assertWidth(width)
-  const minimumLabelWidth = options.minimumLabelWidth ?? 160
+  const minimumLabelWidth =
+    options.minimumLabelWidth ?? resolveMinimumLabelWidth(width)
   const gap = options.gap ?? 6
 
   if (!Number.isFinite(minimumLabelWidth) || minimumLabelWidth <= 0) {

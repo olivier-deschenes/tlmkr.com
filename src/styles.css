@@ -348,3 +348,50 @@ body {
     display: none;
   }
 }
+
+/*
+ * Printing a timeline should produce the timeline, not a screenshot of an app.
+ * The chrome is dropped, the canvas is allowed to use the full sheet, and the
+ * palette is forced back to ink on white regardless of the active theme.
+ */
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  html,
+  .dark {
+    --background: #ffffff;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+    --muted: #f3f4f6;
+    --muted-foreground: #4b5563;
+    --border: #d1d5db;
+    --accent: #f3f4f6;
+    --popover: #ffffff;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  /* Devtools and toast portals are appended to the body, not to the page. */
+  [data-sonner-toaster],
+  [data-tanstack-devtools],
+  .tlmkr-rail,
+  .tlmkr-playhead {
+    display: none !important;
+  }
+
+  [data-timeline-canvas] {
+    break-inside: avoid;
+  }
+
+  /* Absolutely positioned bars and cards lose their fills without this. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
