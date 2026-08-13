@@ -1,4 +1,5 @@
 node_modules
+.openai/hosting.json
 .DS_Store
 dist
 dist-ssr
