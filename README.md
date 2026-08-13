@@ -1,8 +1,8 @@
-# Timeline Maker
+# tlmkr.com
 
 A simple, private timeline editor that runs entirely in your browser.
 
-**[Open Timeline Maker](https://timeline.odeschenes.dev/)**
+**[Open tlmkr.com](https://tlmkr.com/)**
 
 Your timelines stay in your browser—no account, cloud sync, or backend database.
 

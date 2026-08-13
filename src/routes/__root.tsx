@@ -31,14 +31,14 @@ export const Route = createRootRoute({
           content: 'width=device-width, initial-scale=1',
         },
         {
-          title: 'Timeline Maker',
+          title: 'tlmkr.com',
         },
         {
           name: 'description',
           content: description,
         },
         { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: 'Timeline Maker' },
+        { property: 'og:title', content: 'tlmkr.com' },
         { property: 'og:description', content: description },
         ...(imageUrl
           ? [
@@ -46,7 +46,7 @@ export const Route = createRootRoute({
               { property: 'og:image:width', content: '1536' },
               { property: 'og:image:height', content: '1024' },
               { name: 'twitter:card', content: 'summary_large_image' },
-              { name: 'twitter:title', content: 'Timeline Maker' },
+              { name: 'twitter:title', content: 'tlmkr.com' },
               { name: 'twitter:description', content: description },
               { name: 'twitter:image', content: imageUrl },
             ]

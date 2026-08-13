@@ -308,7 +308,7 @@ export function TimelineApp({
             className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight"
           >
             <IconTimeline className="size-4" />
-            <span className="hidden sm:inline">Timeline Maker</span>
+            <span className="hidden sm:inline">tlmkr.com</span>
           </a>
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {timelines.length > 0 ? (
