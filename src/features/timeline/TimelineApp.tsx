@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useDebouncer } from '@tanstack/react-pacer/debouncer'
 import {
@@ -195,20 +196,17 @@ export function TimelineApp({
     setBackupLog(readBackupLog(globalThis.localStorage))
   }, [])
 
+  // No timeline in the URL means the home screen, so the only correction here
+  // is dropping an id that no longer resolves to a stored timeline.
   useEffect(() => {
     if (isSharedView || query.isLoading) return
-    if (timelines.length === 0) {
-      if (activeTimelineId) onSelectTimeline(undefined, true)
-      return
-    }
-    if (!storedTimeline) onSelectTimeline(timelines[0].id, true)
+    if (activeTimelineId && !storedTimeline) onSelectTimeline(undefined, true)
   }, [
     activeTimelineId,
     isSharedView,
     onSelectTimeline,
     query.isLoading,
     storedTimeline,
-    timelines,
   ])
 
   // Switching timelines resets the viewport and the search; both describe a
@@ -573,6 +571,12 @@ export function TimelineApp({
     }
   }
 
+  // The brand link owns the navigation itself; this only clears the shared
+  // timeline, which lives outside the router in the URL fragment.
+  const handleNavigateHome = useCallback(() => {
+    if (isSharedView) onDismissShared?.()
+  }, [isSharedView, onDismissShared])
+
   const handleDelete = () => {
     if (!deleteIntent) return
 
@@ -714,7 +718,7 @@ export function TimelineApp({
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur print:hidden">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
-          <TimelineBrand />
+          <TimelineBrand onNavigateHome={handleNavigateHome} />
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {timelines.length > 0 && !isSharedView ? (
               <Select
@@ -933,6 +937,8 @@ export function TimelineApp({
           />
         ) : (
           <EmptyState
+            timelines={timelines}
+            onOpenTimeline={(timelineId) => onSelectTimeline(timelineId)}
             onCreate={() => setCreateTimelineOpen(true)}
             onImport={() => setTimelineImportOpen(true)}
             onUseTemplate={handleUseTemplate}
@@ -1337,10 +1343,12 @@ function TimelineTitleInput({
   )
 }
 
-function TimelineBrand() {
+function TimelineBrand({ onNavigateHome }: { onNavigateHome: () => void }) {
   return (
-    <a
-      href="/"
+    <Link
+      to="/"
+      search={{}}
+      onClick={onNavigateHome}
       aria-label="tlmkr.com home"
       className="tlmkr-brand flex shrink-0 items-center gap-2 rounded-sm text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
@@ -1359,26 +1367,32 @@ function TimelineBrand() {
           <span className="tlmkr-playhead" />
         </span>
       </span>
-    </a>
+    </Link>
   )
 }
 
 function EmptyState({
+  timelines,
+  onOpenTimeline,
   onCreate,
   onImport,
   onUseTemplate,
 }: {
+  timelines: Array<TimelineRecord>
+  onOpenTimeline: (timelineId: string) => void
   onCreate: () => void
   onImport: () => void
   onUseTemplate: (template: TimelineTemplate) => void
 }) {
+  const hasTimelines = timelines.length > 0
+
   return (
     <div className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-2xl flex-col items-center justify-center text-center">
       <div className="mb-5 flex size-11 items-center justify-center border bg-card">
         <IconTimeline className="size-5" />
       </div>
       <h1 className="text-xl font-semibold tracking-tight">
-        Create your first timeline
+        {hasTimelines ? 'Open a timeline' : 'Create your first timeline'}
       </h1>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
         Organize events into clear layers and see days or years in one fitted
@@ -1395,8 +1409,36 @@ function EmptyState({
         </Button>
       </div>
 
+      {hasTimelines ? (
+        <>
+          <p className="mt-10 mb-3 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
+            Your timelines
+          </p>
+          <div className="grid w-full gap-2 sm:grid-cols-2">
+            {timelines.map((timeline) => (
+              <button
+                key={timeline.id}
+                type="button"
+                className="border bg-card p-4 text-left outline-none transition-colors hover:border-foreground/25 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring/50"
+                onClick={() => onOpenTimeline(timeline.id)}
+              >
+                <span className="block text-sm font-medium">
+                  {timeline.title}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  {timeline.layers.length}{' '}
+                  {timeline.layers.length === 1 ? 'layer' : 'layers'} ·{' '}
+                  {timeline.events.length}{' '}
+                  {timeline.events.length === 1 ? 'event' : 'events'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
       <p className="mt-10 mb-3 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
-        Or start from a template
+        {hasTimelines ? 'Start from a template' : 'Or start from a template'}
       </p>
       <div className="grid w-full gap-2 sm:grid-cols-3">
         {timelineTemplates.map((template) => (
