@@ -44,7 +44,6 @@ const CARD_ROW_STEP = CARD_HEIGHT + CARD_ROW_GAP
 const CONNECTOR_LENGTH = 12
 const LINE_HEIGHT = 16
 const LANE_PADDING = 16
-const EVENT_HATCH_MARKS = '/'.repeat(512)
 const tooltipDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
   month: 'long',
@@ -294,6 +293,30 @@ function LayerLane({
     () => new Map(events.map((event) => [event.id, event])),
     [events],
   )
+  const eventOpacityById = useMemo(() => {
+    const opacityById = new Map<string, number>()
+    let previousEvent: TimelineEvent | undefined
+    let runIndex = 0
+
+    for (const { segment } of segments) {
+      if (segment.kind === 'gap') {
+        previousEvent = undefined
+        runIndex = 0
+        continue
+      }
+
+      const event = eventById.get(segment.eventId)
+      if (!event) continue
+
+      const touchesMatchingEvent =
+        previousEvent?.color.toLowerCase() === event.color.toLowerCase()
+      runIndex = touchesMatchingEvent ? runIndex + 1 : 0
+      opacityById.set(event.id, runIndex % 2 === 1 ? 0.65 : 1)
+      previousEvent = event
+    }
+
+    return opacityById
+  }, [eventById, segments])
   const cardLayout = useMemo(
     () =>
       range && width > 0
@@ -331,10 +354,7 @@ function LayerLane({
         />
       ) : null}
 
-      {segments.map((layout, index) => {
-        const isFirst = index === 0
-        const isLast = index === segments.length - 1
-        const edgeClasses = `${isFirst ? 'rounded-l-md' : ''} ${isLast ? 'rounded-r-md' : ''}`
+      {segments.map((layout) => {
         const dateLabel = `${formatTooltipDate(layout.segment.startDate)} to ${formatTooltipDate(layout.segment.endDate)}`
         const durationLabel = formatEventDuration(
           layout.segment.startDate,
@@ -348,7 +368,7 @@ function LayerLane({
             >
               <TooltipTrigger asChild>
                 <div
-                  className={`absolute flex items-center justify-center overflow-hidden border-y border-dashed bg-muted/45 px-1 text-muted-foreground outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60 ${edgeClasses}`}
+                  className="absolute outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60"
                   style={{
                     left: layout.left,
                     top: lineTop,
@@ -357,18 +377,7 @@ function LayerLane({
                   }}
                   tabIndex={0}
                   aria-label={`Gap, ${durationLabel}, ${dateLabel}`}
-                >
-                  <span
-                    className="absolute inset-0 opacity-45 [background-image:repeating-linear-gradient(135deg,transparent,transparent_5px,var(--border)_5px,var(--border)_6px)]"
-                    aria-hidden="true"
-                  />
-                  {layout.width >= 52 ? (
-                    <span className="relative truncate text-[10px] font-medium tabular-nums">
-                      {layout.width >= 92 ? 'Gap · ' : ''}
-                      {durationLabel}
-                    </span>
-                  ) : null}
-                </div>
+                />
               </TooltipTrigger>
               <TooltipContent sideOffset={6}>
                 <span className="font-medium">Gap · {durationLabel}</span>
@@ -380,47 +389,31 @@ function LayerLane({
 
         const event = eventById.get(layout.segment.eventId)
         if (!event) return null
+        const eventOpacity = eventOpacityById.get(event.id) ?? 1
 
         return (
           <Tooltip key={event.id}>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="group/event absolute flex flex-col justify-center overflow-hidden rounded-full border p-0 text-left outline-none transition-[filter,box-shadow,transform] hover:z-10 hover:-translate-y-px hover:brightness-[0.98] hover:shadow-sm focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60 [&>span]:hidden"
+                className="group/event absolute z-[1] border-0 bg-transparent p-0 outline-none hover:z-10 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring/60"
                 style={{
                   left: layout.left,
                   top: lineTop,
                   width: layout.width,
                   height: LINE_HEIGHT,
-                  borderColor: event.color,
-                  backgroundColor: `color-mix(in oklab, ${event.color} 16%, transparent)`,
                 }}
                 onClick={() => onEditEvent(event.id)}
                 aria-label={`${event.title}, ${durationLabel}, ${dateLabel}, in ${layer.title}`}
               >
                 <span
-                  className="absolute inset-x-2 inset-y-0 !flex items-center overflow-hidden whitespace-nowrap font-mono text-xs leading-none font-normal tracking-[0.75em]"
-                  style={{ color: event.color }}
+                  className="absolute inset-x-0 top-1/2 block h-[3px] -translate-y-1/2 rounded-full"
+                  style={{
+                    backgroundColor: event.color,
+                    opacity: eventOpacity,
+                  }}
                   aria-hidden="true"
-                >
-                  {EVENT_HATCH_MARKS}
-                </span>
-                {layout.width >= 42 ? (
-                  <span className="block w-full truncate text-[11px] font-semibold">
-                    {event.title}
-                  </span>
-                ) : (
-                  <span
-                    className="mx-auto size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: event.color }}
-                    aria-hidden="true"
-                  />
-                )}
-                {layout.width >= 76 ? (
-                  <span className="block w-full truncate text-[10px] text-muted-foreground tabular-nums">
-                    {durationLabel}
-                  </span>
-                ) : null}
+                />
               </button>
             </TooltipTrigger>
             <TooltipContent sideOffset={6}>
@@ -436,6 +429,7 @@ function LayerLane({
       {cardLayout.cards.map((card) => {
         const event = eventById.get(card.eventId)
         if (!event) return null
+        const eventOpacity = eventOpacityById.get(event.id) ?? 1
 
         const cardTop =
           card.side === 'above'
@@ -466,11 +460,19 @@ function LayerLane({
         return (
           <Fragment key={`card-${event.id}`}>
             <span
-              className="pointer-events-none absolute z-[1] w-0 border-l border-dashed"
+              className="pointer-events-none absolute z-0 w-0 border-l border-border/80"
               style={{
                 left: card.anchorX,
                 top: connectorTop,
                 height: connectorHeight,
+              }}
+              aria-hidden="true"
+            />
+            <span
+              className="pointer-events-none absolute z-[11] size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-card"
+              style={{
+                left: card.anchorX,
+                top: anchorY,
                 borderColor: event.color,
               }}
               aria-hidden="true"
@@ -491,13 +493,19 @@ function LayerLane({
                 >
                   <span
                     className="absolute inset-x-0 top-0 h-1"
-                    style={{ backgroundColor: event.color }}
+                    style={{
+                      backgroundColor: event.color,
+                      opacity: eventOpacity,
+                    }}
                     aria-hidden="true"
                   />
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span
                       className="size-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: event.color }}
+                      style={{
+                        backgroundColor: event.color,
+                        opacity: eventOpacity,
+                      }}
                       aria-hidden="true"
                     />
                     <span className="block min-w-0 truncate text-[11px] font-medium">
