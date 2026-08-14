@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test'
 
 import { createTimeline } from './operations'
 import {
-  createChatGptEventPrompt,
-  createChatGptEventUrl,
+  createAssistantLinks,
+  createEventPrompt,
   EventImportError,
   importEventsFromJson,
   parseEventImport,
@@ -120,14 +120,29 @@ describe('event JSON import', () => {
     ).toThrow(EventImportError)
   })
 
-  test('builds a ChatGPT prompt with the accepted format and current layers', () => {
-    const prompt = createChatGptEventPrompt(timeline())
-    const url = new URL(createChatGptEventUrl(timeline()))
+  test('builds an assistant prompt with the accepted format and current layers', () => {
+    const prompt = createEventPrompt(timeline())
 
     expect(prompt).toContain('valid JSON only')
     expect(prompt).toContain('- Launches')
     expect(prompt).toContain('YYYY-MM-DD')
-    expect(url.origin).toBe('https://chatgpt.com')
-    expect(url.searchParams.get('q')).toBe(prompt)
+  })
+
+  test('carries the prompt into every assistant link', () => {
+    const prompt = createEventPrompt(timeline())
+    const links = createAssistantLinks(prompt)
+
+    expect(links.map((link) => link.label)).toEqual([
+      'ChatGPT',
+      'Claude',
+      'Gemini',
+    ])
+
+    for (const link of links) {
+      const url = new URL(link.url)
+      expect(url.searchParams.get('q')).toBe(prompt)
+    }
+
+    expect(new URL(links[0]!.url).origin).toBe('https://chatgpt.com')
   })
 })

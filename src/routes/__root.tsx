@@ -12,6 +12,7 @@ import { ThemeProvider } from 'next-themes'
 
 import { Toaster } from '#/components/ui/sonner'
 import { Button } from '#/components/ui/button'
+import { SITE_NAME, SITE_TITLE } from '#/lib/site'
 
 import appCss from '../styles.css?url'
 
@@ -38,14 +39,14 @@ export const Route = createRootRoute({
           content: 'width=device-width, initial-scale=1',
         },
         {
-          title: 'tlmkr.com',
+          title: SITE_TITLE,
         },
         {
           name: 'description',
           content: description,
         },
         { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: 'tlmkr.com' },
+        { property: 'og:title', content: SITE_TITLE },
         { property: 'og:description', content: description },
         ...(imageUrl
           ? [
@@ -53,7 +54,7 @@ export const Route = createRootRoute({
               { property: 'og:image:width', content: '1536' },
               { property: 'og:image:height', content: '1024' },
               { name: 'twitter:card', content: 'summary_large_image' },
-              { name: 'twitter:title', content: 'tlmkr.com' },
+              { name: 'twitter:title', content: SITE_TITLE },
               { name: 'twitter:description', content: description },
               { name: 'twitter:image', content: imageUrl },
             ]
@@ -104,7 +105,7 @@ function NotFoundPage() {
           We couldn’t find this page.
         </p>
         <Button asChild className="mt-6">
-          <Link to="/">Back to tlmkr.com</Link>
+          <Link to="/">Back to {SITE_NAME}</Link>
         </Button>
       </div>
     </main>

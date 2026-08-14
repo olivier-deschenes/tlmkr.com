@@ -140,7 +140,11 @@ export function importEventsFromJson(
   }
 }
 
-export function createChatGptEventPrompt(timeline: TimelineRecord): string {
+/**
+ * The prompt travels on its own — into a link or onto the clipboard — so it has
+ * to carry the format and the layer names with it.
+ */
+export function createEventPrompt(timeline: TimelineRecord): string {
   const layerTitles = [...timeline.layers]
     .sort((left, right) => left.order - right.order)
     .map((layer) => `- ${layer.title}`)
@@ -177,8 +181,24 @@ Rules:
 - If my request is ambiguous or missing dates, ask concise follow-up questions before producing the final JSON.`
 }
 
-export function createChatGptEventUrl(timeline: TimelineRecord): string {
-  const url = new URL('https://chatgpt.com/')
-  url.searchParams.set('q', createChatGptEventPrompt(timeline))
-  return url.toString()
+export interface AssistantLink {
+  label: string
+  url: string
+}
+
+/**
+ * Each assistant opens a new chat with the prompt already in the composer via
+ * its own `q` parameter. Gemini is the shaky one: it opens the app but may drop
+ * the parameter, which is why the prompt can also be copied.
+ */
+export function createAssistantLinks(prompt: string): AssistantLink[] {
+  return [
+    { label: 'ChatGPT', base: 'https://chatgpt.com/' },
+    { label: 'Claude', base: 'https://claude.ai/new' },
+    { label: 'Gemini', base: 'https://gemini.google.com/app' },
+  ].map(({ label, base }) => {
+    const url = new URL(base)
+    url.searchParams.set('q', prompt)
+    return { label, url: url.toString() }
+  })
 }

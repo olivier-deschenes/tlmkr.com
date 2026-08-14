@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import {
   IconAlertTriangle,
-  IconBrandOpenai,
   IconCheck,
   IconCloudUpload,
   IconCopy,
   IconExternalLink,
   IconJson,
   IconLayersIntersect,
+  IconSparkles,
   IconTrash,
 } from '@tabler/icons-react'
 import { z } from 'zod'
@@ -55,6 +55,7 @@ import type {
   TimelineLayer,
   TimelineRecord,
 } from '#/features/timeline/model'
+import { createAssistantLinks } from '#/features/timeline/eventImport'
 import { createShortShareLink } from '#/features/timeline/shareLink'
 import type { ShortShareLink } from '#/features/timeline/shareLink'
 import { shortcutDefinitions } from '#/features/timeline/shortcuts'
@@ -403,8 +404,76 @@ export function EventDialog({
 interface EventImportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  chatGptUrl: string
+  /** Ready-made instructions for an assistant, copied rather than shown. */
+  prompt: string
   onSubmit: (json: string) => void
+}
+
+/**
+ * The prompt itself is long and never needs reading, so the box explains what
+ * it does and carries it in the links and the clipboard instead of filling the
+ * dialog with it.
+ */
+function EventPromptAlert({ prompt }: { prompt: string }) {
+  const assistants = useMemo(() => createAssistantLinks(prompt), [prompt])
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string>()
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  return (
+    <Alert>
+      <IconSparkles />
+      <AlertTitle>Generate the JSON with an AI assistant</AlertTitle>
+      <AlertDescription>
+        <p>
+          A ready-made prompt spells out the required format and this
+          timeline&apos;s layer names. Open a chat with it below, describe the
+          events you want, then paste the JSON you get back into the field
+          underneath.
+        </p>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>Open a chat in</span>
+          {assistants.map((assistant) => (
+            <a
+              key={assistant.label}
+              href={assistant.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              {assistant.label}
+              <IconExternalLink className="size-3.5" />
+            </a>
+          ))}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setCopyError(undefined)
+            void navigator.clipboard
+              .writeText(prompt)
+              .then(() => setCopied(true))
+              .catch(() =>
+                setCopyError('The prompt could not be copied to the clipboard.'),
+              )
+          }}
+        >
+          {copied ? <IconCheck /> : <IconCopy />}
+          {copied ? 'Prompt copied' : 'Copy prompt'}
+        </Button>
+        {copyError ? (
+          <p className="text-destructive">{copyError}</p>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  )
 }
 
 interface TimelineImportDialogProps {
@@ -514,7 +583,10 @@ function TimelineImportForm({
                       '{\n  "schemaVersion": 1,\n  "id": "...",\n  "title": "...",\n  "createdAt": "...",\n  "updatedAt": "...",\n  "layers": [...],\n  "events": [...]\n}'
                     }
                     rows={13}
-                    className="resize-y font-mono text-xs"
+                    // The base textarea grows with its content, so a pasted
+                    // export would push the buttons off screen; cap it and let
+                    // the JSON scroll inside instead.
+                    className="max-h-64 resize-y overflow-y-auto font-mono text-xs"
                   />
                   {invalid ? (
                     <FieldError errors={field.state.meta.errors} />
@@ -550,14 +622,14 @@ function TimelineImportForm({
 export function EventImportDialog({
   open,
   onOpenChange,
-  chatGptUrl,
+  prompt,
   onSubmit,
 }: EventImportDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
         <EventImportForm
-          chatGptUrl={chatGptUrl}
+          prompt={prompt}
           onCancel={() => onOpenChange(false)}
           onSubmit={onSubmit}
         />
@@ -567,10 +639,10 @@ export function EventImportDialog({
 }
 
 function EventImportForm({
-  chatGptUrl,
+  prompt,
   onCancel,
   onSubmit,
-}: Pick<EventImportDialogProps, 'chatGptUrl' | 'onSubmit'> & {
+}: Pick<EventImportDialogProps, 'prompt' | 'onSubmit'> & {
   onCancel: () => void
 }) {
   const [importError, setImportError] = useState<string>()
@@ -600,22 +672,7 @@ function EventImportForm({
           changed.
         </DialogDescription>
       </DialogHeader>
-      <Alert>
-        <IconBrandOpenai />
-        <AlertTitle>Generate the JSON with ChatGPT</AlertTitle>
-        <AlertDescription>
-          <p>
-            Open a prepared chat that knows the required format and this
-            timeline&apos;s layer names, then describe the events you want.
-          </p>
-          <Button asChild type="button" size="sm" variant="outline">
-            <a href={chatGptUrl} target="_blank" rel="noreferrer">
-              Open ChatGPT
-              <IconExternalLink />
-            </a>
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <EventPromptAlert prompt={prompt} />
       <form
         className="contents"
         onSubmit={(event) => {
@@ -663,7 +720,10 @@ function EventImportForm({
                     aria-invalid={invalid || importError !== undefined}
                     placeholder={'{\n  "events": [\n    { ... }\n  ]\n}'}
                     rows={13}
-                    className="resize-y font-mono text-xs"
+                    // The base textarea grows with its content, so a pasted
+                    // export would push the buttons off screen; cap it and let
+                    // the JSON scroll inside instead.
+                    className="max-h-64 resize-y overflow-y-auto font-mono text-xs"
                     autoFocus
                   />
                   {invalid ? (

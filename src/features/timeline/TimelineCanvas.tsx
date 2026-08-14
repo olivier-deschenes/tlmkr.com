@@ -44,7 +44,10 @@ import {
   todayIsoDate,
   zoomViewRange,
 } from '#/features/timeline/layout'
-import type { TimelineDateRange } from '#/features/timeline/layout'
+import type {
+  TimelineDateRange,
+  TimelineTick,
+} from '#/features/timeline/layout'
 import {
   applyEventDrag,
   eventDatesEqual,
@@ -326,12 +329,12 @@ export function TimelineCanvas({
         className="relative grid overflow-hidden border bg-card md:grid-cols-[220px_minmax(0,1fr)]"
         aria-label={`${timeline.title} timeline`}
       >
-        <div className="hidden h-14 items-end border-r border-b bg-muted/20 px-4 pb-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase md:flex">
+        <div className="hidden h-10 items-end border-r border-b bg-muted/20 px-4 pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase md:flex">
           Layers
         </div>
         <div
           ref={axisRef}
-          className={`relative h-14 overflow-hidden border-b bg-muted/20 ${range && !readOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          className={`relative h-10 overflow-hidden border-b bg-muted/20 ${range && !readOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}
           aria-label="Timeline date axis"
           onPointerDown={(pointerEvent) => {
             if (!range || pointerEvent.button !== 0) return
@@ -347,7 +350,7 @@ export function TimelineCanvas({
                   style={{ left: tick.position }}
                 >
                   <span className="absolute top-0 h-full w-px bg-border" />
-                  <span className="absolute bottom-2 -translate-x-1/2 whitespace-nowrap text-[10px] text-muted-foreground tabular-nums">
+                  <span className="absolute bottom-1.5 -translate-x-1/2 whitespace-nowrap text-[10px] text-muted-foreground tabular-nums">
                     {tick.label}
                   </span>
                 </div>
@@ -358,7 +361,7 @@ export function TimelineCanvas({
                   style={{ left: todayPosition }}
                 >
                   <span className="absolute inset-y-0 w-px bg-primary/70" />
-                  <span className="absolute top-1 -translate-x-1/2 rounded-full bg-primary px-1.5 py-px text-[9px] font-medium tracking-wide text-primary-foreground uppercase">
+                  <span className="absolute top-0.5 -translate-x-1/2 rounded-full bg-primary px-1.5 py-px text-[9px] leading-[1.3] font-medium tracking-wide text-primary-foreground uppercase">
                     Today
                   </span>
                 </span>
@@ -368,7 +371,7 @@ export function TimelineCanvas({
               </span>
             </>
           ) : (
-            <div className="flex h-full items-end px-4 pb-3 text-xs text-muted-foreground">
+            <div className="flex h-full items-center px-4 text-xs text-muted-foreground">
               Add an event to establish the date range
             </div>
           )}
@@ -416,6 +419,7 @@ export function TimelineCanvas({
                 events={layerEvents}
                 layer={layer}
                 range={range}
+                ticks={ticks}
                 width={width}
                 todayPosition={todayPosition}
                 matchedEventIds={matchedEventIds}
@@ -624,6 +628,8 @@ interface LayerLaneProps {
   events: Array<TimelineEvent>
   layer: TimelineLayer
   range: TimelineDateRange | null
+  /** The same ticks the axis renders, so the gridlines line up across layers. */
+  ticks: ReadonlyArray<TimelineTick>
   width: number
   todayPosition: number | null
   matchedEventIds: ReadonlySet<string>
@@ -649,6 +655,7 @@ function LayerLane({
   events,
   layer,
   range,
+  ticks,
   width,
   todayPosition,
   matchedEventIds,
@@ -721,9 +728,18 @@ function LayerLane({
       }}
       {...dragHandlers}
     >
-      {range ? (
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)] bg-[size:12.5%_100%] opacity-35" />
-      ) : null}
+      {/* Every lane draws the axis ticks at the same positions, so each tick
+          reads as one line running down through all the layers. */}
+      {range
+        ? ticks.map((tick) => (
+            <span
+              key={`${tick.date}-${tick.position}`}
+              className={`pointer-events-none absolute inset-y-0 w-px bg-border ${tick.unit === 'year' ? 'opacity-60' : 'opacity-30'}`}
+              style={{ left: tick.position }}
+              aria-hidden="true"
+            />
+          ))
+        : null}
 
       {todayPosition !== null ? (
         <span

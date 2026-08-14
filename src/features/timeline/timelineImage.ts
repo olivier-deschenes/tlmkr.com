@@ -15,7 +15,7 @@ import { formatEventDuration } from './duration'
 import { createExportBasename } from './timelineExport'
 import type { TimelineEvent, TimelineRecord } from './model'
 
-const AXIS_HEIGHT = 56
+const AXIS_HEIGHT = 40
 const LABEL_COLUMN_WIDTH = 200
 const HEADER_HEIGHT = 64
 const FOOTER_HEIGHT = 34
@@ -180,7 +180,7 @@ export function createTimelineSvg(
         `<line x1="${x}" y1="${axisTop}" x2="${x}" y2="${cursor}" stroke="${theme.border}" stroke-width="1"/>`,
       )
       parts.push(
-        `<text x="${x}" y="${axisTop + AXIS_HEIGHT - 14}" text-anchor="middle" font-family="${FONT_STACK}" font-size="10" fill="${theme.muted}">${escapeXml(tick.label)}</text>`,
+        `<text x="${x}" y="${axisTop + AXIS_HEIGHT - 10}" text-anchor="middle" font-family="${FONT_STACK}" font-size="10" fill="${theme.muted}">${escapeXml(tick.label)}</text>`,
       )
     }
 
@@ -191,7 +191,7 @@ export function createTimelineSvg(
         `<line x1="${x}" y1="${axisTop}" x2="${x}" y2="${cursor}" stroke="${theme.accent}" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>`,
       )
       parts.push(
-        `<text x="${x}" y="${axisTop + 12}" text-anchor="middle" font-family="${FONT_STACK}" font-size="9" font-weight="600" fill="${theme.accent}">TODAY</text>`,
+        `<text x="${x}" y="${axisTop + 11}" text-anchor="middle" font-family="${FONT_STACK}" font-size="9" font-weight="600" fill="${theme.accent}">TODAY</text>`,
       )
     }
   }

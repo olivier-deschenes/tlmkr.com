@@ -21,6 +21,7 @@ import {
   IconSearch,
   IconShare,
   IconTimeline,
+  IconTimelineEvent,
   IconTrash,
   IconX,
   IconZoomReset,
@@ -29,7 +30,11 @@ import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { ButtonGroup } from '#/components/ui/button-group'
+import {
+  ButtonGroup,
+  ButtonGroupSeparator,
+} from '#/components/ui/button-group'
+import { IconBracesPlus } from '#/components/icon-braces-plus'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,7 +83,7 @@ import {
 import type { TimelineDateRange } from '#/features/timeline/layout'
 import type { EventDates } from '#/features/timeline/drag'
 import {
-  createChatGptEventUrl,
+  createEventPrompt,
   importEventsFromJson,
 } from '#/features/timeline/eventImport'
 import type { TimelineRecord } from '#/features/timeline/model'
@@ -130,6 +135,7 @@ import {
   timelineTemplates,
 } from '#/features/timeline/templates'
 import type { TimelineTemplate } from '#/features/timeline/templates'
+import { documentTitle } from '#/lib/site'
 
 interface TimelineAppProps {
   activeTimelineId?: string
@@ -196,6 +202,13 @@ export function TimelineApp({
     setBackupLog(readBackupLog(globalThis.localStorage))
   }, [])
 
+  // Timelines only exist in this browser, so the route's head cannot name the
+  // open one; the tab title is set here once the stored record is read, and
+  // follows later renames.
+  useEffect(() => {
+    document.title = documentTitle(activeTimeline?.title)
+  }, [activeTimeline?.title])
+
   // No timeline in the URL means the home screen, so the only correction here
   // is dropping an id that no longer resolves to a stored timeline.
   useEffect(() => {
@@ -230,10 +243,10 @@ export function TimelineApp({
       activeTimeline
         ? searchTimeline(activeTimeline, searchQuery)
         : {
-            matchedEventIds: new Set<string>(),
-            matchCount: 0,
-            isActive: false,
-          },
+          matchedEventIds: new Set<string>(),
+          matchCount: 0,
+          isActive: false,
+        },
     [activeTimeline, searchQuery],
   )
 
@@ -269,8 +282,8 @@ export function TimelineApp({
   const writeTimeline = (timeline: TimelineRecord, message?: string) => {
     const transaction = collection.has(timeline.id)
       ? collection.update(timeline.id, (draft) => {
-          Object.assign(draft, timeline)
-        })
+        Object.assign(draft, timeline)
+      })
       : collection.insert(timeline)
     watchPersistence(transaction, message)
   }
@@ -718,12 +731,12 @@ export function TimelineApp({
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur print:hidden">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
-          <TimelineBrand onNavigateHome={handleNavigateHome} />
+          <TimelineBrand onNavigateHome={ handleNavigateHome } />
           <div className="ml-auto flex min-w-0 items-center gap-2">
-            {timelines.length > 0 && !isSharedView ? (
+            { timelines.length > 0 && !isSharedView ? (
               <Select
-                value={storedTimeline?.id ?? ''}
-                onValueChange={(timelineId) => onSelectTimeline(timelineId)}
+                value={ storedTimeline?.id ?? '' }
+                onValueChange={ (timelineId) => onSelectTimeline(timelineId) }
               >
                 <SelectTrigger
                   className="w-[min(52vw,260px)]"
@@ -732,16 +745,16 @@ export function TimelineApp({
                   <SelectValue placeholder="Choose a timeline" />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  {timelines.map((timeline) => (
-                    <SelectItem key={timeline.id} value={timeline.id}>
-                      {timeline.title}
+                  { timelines.map((timeline) => (
+                    <SelectItem key={ timeline.id } value={ timeline.id }>
+                      { timeline.title }
                     </SelectItem>
-                  ))}
+                  )) }
                 </SelectContent>
               </Select>
-            ) : null}
-            {isSharedView ? (
-              <Button type="button" size="sm" onClick={handleSaveSharedCopy}>
+            ) : null }
+            { isSharedView ? (
+              <Button type="button" size="sm" onClick={ handleSaveSharedCopy }>
                 <IconDeviceFloppy />
                 Save a copy
               </Button>
@@ -751,7 +764,7 @@ export function TimelineApp({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setTimelineImportOpen(true)}
+                  onClick={ () => setTimelineImportOpen(true) }
                 >
                   <IconFileImport />
                   <span className="hidden sm:inline">Import timeline</span>
@@ -760,16 +773,16 @@ export function TimelineApp({
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => setCreateTimelineOpen(true)}
+                  onClick={ () => setCreateTimelineOpen(true) }
                 >
                   <IconPlus />
                   <span className="hidden sm:inline">New timeline</span>
                   <span className="sm:hidden">New</span>
                 </Button>
               </>
-            )}
+            ) }
             <ThemeToggle />
-            {activeTimeline ? (
+            { activeTimeline ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -782,46 +795,46 @@ export function TimelineApp({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+                  <DropdownMenuItem onSelect={ () => setShareOpen(true) }>
                     <IconShare />
                     Share a link
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={handleExport}>
+                  <DropdownMenuItem onSelect={ handleExport }>
                     <IconJson />
                     Export JSON
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onSelect={() => void handleExportImage('png')}
+                    onSelect={ () => void handleExportImage('png') }
                   >
                     <IconPhoto />
                     Export PNG
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onSelect={() => void handleExportImage('svg')}
+                    onSelect={ () => void handleExportImage('svg') }
                   >
                     <IconPhoto />
                     Export SVG
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => window.print()}>
+                  <DropdownMenuItem onSelect={ () => window.print() }>
                     <IconPrinter />
                     Print
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setShortcutsOpen(true)}>
+                  <DropdownMenuItem onSelect={ () => setShortcutsOpen(true) }>
                     <IconKeyboard />
                     Keyboard shortcuts
                   </DropdownMenuItem>
-                  {storedTimeline && !isSharedView ? (
+                  { storedTimeline && !isSharedView ? (
                     <>
-                      <DropdownMenuItem onSelect={handleDuplicateTimeline}>
+                      <DropdownMenuItem onSelect={ handleDuplicateTimeline }>
                         <IconCopy />
                         Duplicate timeline
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         variant="destructive"
-                        onSelect={() =>
+                        onSelect={ () =>
                           setDeleteIntent({
                             kind: 'timeline',
                             id: storedTimeline.id,
@@ -833,16 +846,16 @@ export function TimelineApp({
                         Delete timeline
                       </DropdownMenuItem>
                     </>
-                  ) : null}
+                  ) : null }
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : null}
+            ) : null }
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 print:max-w-none print:px-0 print:py-0">
-        {isSharedView ? (
+      <main className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 print:max-w-none print:px-0 print:py-0">
+        { isSharedView ? (
           <Alert className="mb-6 print:hidden">
             <IconShare />
             <AlertTitle>You are viewing a shared timeline</AlertTitle>
@@ -852,7 +865,7 @@ export function TimelineApp({
                 been added to this browser yet.
               </p>
               <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={handleSaveSharedCopy}>
+                <Button type="button" size="sm" onClick={ handleSaveSharedCopy }>
                   <IconDeviceFloppy />
                   Save a copy
                 </Button>
@@ -860,34 +873,34 @@ export function TimelineApp({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={onDismissShared}
+                  onClick={ onDismissShared }
                 >
                   Close
                 </Button>
               </div>
             </AlertDescription>
           </Alert>
-        ) : null}
+        ) : null }
 
-        {storageError ? (
+        { storageError ? (
           <Alert variant="destructive" className="mb-6 print:hidden">
             <IconAlertTriangle />
             <AlertTitle>Changes are not being saved</AlertTitle>
-            <AlertDescription>{storageError}</AlertDescription>
+            <AlertDescription>{ storageError }</AlertDescription>
           </Alert>
-        ) : null}
+        ) : null }
 
-        {backup?.shouldRemind && !backupDismissed ? (
+        { backup?.shouldRemind && !backupDismissed ? (
           <Alert className="mb-6 print:hidden">
             <IconDeviceFloppy />
             <AlertTitle>Keep a backup of this timeline</AlertTitle>
             <AlertDescription>
               <p>
-                {backup.message} Browsers can clear local storage without
+                { backup.message } Browsers can clear local storage without
                 warning, and there is no copy anywhere else.
               </p>
               <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={handleExport}>
+                <Button type="button" size="sm" onClick={ handleExport }>
                   <IconJson />
                   Export now
                 </Button>
@@ -895,141 +908,141 @@ export function TimelineApp({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => setBackupDismissed(true)}
+                  onClick={ () => setBackupDismissed(true) }
                 >
                   Not now
                 </Button>
               </div>
             </AlertDescription>
           </Alert>
-        ) : null}
+        ) : null }
 
-        {activeTimeline ? (
+        { activeTimeline ? (
           <TimelineWorkspace
-            key={activeTimeline.id}
-            timeline={activeTimeline}
-            readOnly={isSharedView}
-            range={effectiveRange}
-            contentRange={contentRange}
-            isFitted={isFitted}
-            history={history}
-            search={search}
-            searchQuery={searchQuery}
-            searchInputRef={searchInputRef}
-            onSearchQueryChange={setSearchQuery}
-            onViewRangeChange={setViewRange}
-            onZoomIn={() => zoomBy(1 / ZOOM_STEP)}
-            onZoomOut={() => zoomBy(ZOOM_STEP)}
-            onZoomFit={() => setViewRange(null)}
-            onUndo={() => applyHistoryStep('undo')}
-            onRedo={() => applyHistoryStep('redo')}
-            onRename={handleRenameTimeline}
-            onAddLayer={() => setLayerDialog({ mode: 'new' })}
-            onCreateEvent={(layerId) =>
+            key={ activeTimeline.id }
+            timeline={ activeTimeline }
+            readOnly={ isSharedView }
+            range={ effectiveRange }
+            contentRange={ contentRange }
+            isFitted={ isFitted }
+            history={ history }
+            search={ search }
+            searchQuery={ searchQuery }
+            searchInputRef={ searchInputRef }
+            onSearchQueryChange={ setSearchQuery }
+            onViewRangeChange={ setViewRange }
+            onZoomIn={ () => zoomBy(1 / ZOOM_STEP) }
+            onZoomOut={ () => zoomBy(ZOOM_STEP) }
+            onZoomFit={ () => setViewRange(null) }
+            onUndo={ () => applyHistoryStep('undo') }
+            onRedo={ () => applyHistoryStep('redo') }
+            onRename={ handleRenameTimeline }
+            onAddLayer={ () => setLayerDialog({ mode: 'new' }) }
+            onCreateEvent={ (layerId) =>
               setEventDialog({ mode: 'new', layerId })
             }
-            onEditEvent={(eventId) => setEventDialog({ mode: 'edit', eventId })}
-            onEditLayer={(layerId) => setLayerDialog({ mode: 'edit', layerId })}
-            onImportEvents={() => setEventImportOpen(true)}
-            onMoveLayer={handleMoveLayer}
-            onReorderLayers={handleReorderLayers}
-            onChangeEventDates={handleChangeEventDates}
+            onEditEvent={ (eventId) => setEventDialog({ mode: 'edit', eventId }) }
+            onEditLayer={ (layerId) => setLayerDialog({ mode: 'edit', layerId }) }
+            onImportEvents={ () => setEventImportOpen(true) }
+            onMoveLayer={ handleMoveLayer }
+            onReorderLayers={ handleReorderLayers }
+            onChangeEventDates={ handleChangeEventDates }
           />
         ) : (
           <EmptyState
-            timelines={timelines}
-            onOpenTimeline={(timelineId) => onSelectTimeline(timelineId)}
-            onCreate={() => setCreateTimelineOpen(true)}
-            onImport={() => setTimelineImportOpen(true)}
-            onUseTemplate={handleUseTemplate}
+            timelines={ timelines }
+            onOpenTimeline={ (timelineId) => onSelectTimeline(timelineId) }
+            onCreate={ () => setCreateTimelineOpen(true) }
+            onImport={ () => setTimelineImportOpen(true) }
+            onUseTemplate={ handleUseTemplate }
           />
-        )}
+        ) }
       </main>
 
       <TimelineNameDialog
-        open={createTimelineOpen}
-        onOpenChange={setCreateTimelineOpen}
+        open={ createTimelineOpen }
+        onOpenChange={ setCreateTimelineOpen }
         title="New timeline"
         description="Create a blank timeline with one layer to get started."
         submitLabel="Create timeline"
-        onSubmit={handleCreateTimeline}
+        onSubmit={ handleCreateTimeline }
       />
       <TimelineImportDialog
-        open={timelineImportOpen}
-        onOpenChange={setTimelineImportOpen}
-        onSubmit={handleTimelineImport}
+        open={ timelineImportOpen }
+        onOpenChange={ setTimelineImportOpen }
+        onSubmit={ handleTimelineImport }
       />
-      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      {activeTimeline ? (
+      <ShortcutsDialog open={ shortcutsOpen } onOpenChange={ setShortcutsOpen } />
+      { activeTimeline ? (
         <ShareDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          timeline={activeTimeline}
+          open={ shareOpen }
+          onOpenChange={ setShareOpen }
+          timeline={ activeTimeline }
         />
-      ) : null}
-      {storedTimeline && !isSharedView ? (
+      ) : null }
+      { storedTimeline && !isSharedView ? (
         <>
           <LayerDialog
-            open={layerDialog !== null}
-            onOpenChange={(open) => {
+            open={ layerDialog !== null }
+            onOpenChange={ (open) => {
               if (!open) setLayerDialog(null)
-            }}
-            layer={selectedLayer}
-            onSubmit={handleLayerSubmit}
+            } }
+            layer={ selectedLayer }
+            onSubmit={ handleLayerSubmit }
             onRequestDelete={
               selectedLayer
                 ? () =>
-                    setDeleteIntent({
-                      kind: 'layer',
-                      id: selectedLayer.id,
-                      title: selectedLayer.title,
-                      eventCount: storedTimeline.events.filter(
-                        (event) => event.layerId === selectedLayer.id,
-                      ).length,
-                    })
+                  setDeleteIntent({
+                    kind: 'layer',
+                    id: selectedLayer.id,
+                    title: selectedLayer.title,
+                    eventCount: storedTimeline.events.filter(
+                      (event) => event.layerId === selectedLayer.id,
+                    ).length,
+                  })
                 : undefined
             }
           />
           <EventDialog
-            open={eventDialog !== null}
-            onOpenChange={(open) => {
+            open={ eventDialog !== null }
+            onOpenChange={ (open) => {
               if (!open) setEventDialog(null)
-            }}
-            event={selectedEvent}
-            layers={[...storedTimeline.layers].sort(
+            } }
+            event={ selectedEvent }
+            layers={ [...storedTimeline.layers].sort(
               (left, right) => left.order - right.order,
-            )}
-            defaultLayerId={defaultEventLayer}
-            onSubmit={handleEventSubmit}
-            onDuplicate={selectedEvent ? handleDuplicateEvent : undefined}
-            onMoveToNewLayer={handleMoveEventToNewLayer}
+            ) }
+            defaultLayerId={ defaultEventLayer }
+            onSubmit={ handleEventSubmit }
+            onDuplicate={ selectedEvent ? handleDuplicateEvent : undefined }
+            onMoveToNewLayer={ handleMoveEventToNewLayer }
             onRequestDelete={
               selectedEvent
                 ? () =>
-                    setDeleteIntent({
-                      kind: 'event',
-                      id: selectedEvent.id,
-                      title: selectedEvent.title,
-                    })
+                  setDeleteIntent({
+                    kind: 'event',
+                    id: selectedEvent.id,
+                    title: selectedEvent.title,
+                  })
                 : undefined
             }
           />
           <EventImportDialog
-            open={eventImportOpen}
-            onOpenChange={setEventImportOpen}
-            chatGptUrl={createChatGptEventUrl(storedTimeline)}
-            onSubmit={handleEventImport}
+            open={ eventImportOpen }
+            onOpenChange={ setEventImportOpen }
+            prompt={ createEventPrompt(storedTimeline) }
+            onSubmit={ handleEventImport }
           />
         </>
-      ) : null}
+      ) : null }
       <ConfirmDeleteDialog
-        open={deleteIntent !== null}
-        onOpenChange={(open) => {
+        open={ deleteIntent !== null }
+        onOpenChange={ (open) => {
           if (!open) setDeleteIntent(null)
-        }}
-        title={deleteDialogTitle(deleteIntent)}
-        description={deleteDialogDescription(deleteIntent)}
-        onConfirm={handleDelete}
+        } }
+        title={ deleteDialogTitle(deleteIntent) }
+        description={ deleteDialogDescription(deleteIntent) }
+        onConfirm={ handleDelete }
       />
     </div>
   )
@@ -1102,31 +1115,35 @@ function TimelineWorkspace({
     <TooltipProvider>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="mb-2 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
-            {readOnly ? 'Shared timeline' : 'Browser-local timeline'}
-          </p>
-          {readOnly ? (
-            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
-              {timeline.title}
-            </h1>
+          { readOnly ? <p className="mb-2 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">Shared timeline</p> : null }
+          { readOnly ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <IconTimelineEvent
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground/70 sm:size-5"
+              />
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+                { timeline.title }
+              </h1>
+            </div>
           ) : (
-            <TimelineTitleInput title={timeline.title} onRename={onRename} />
-          )}
+            <TimelineTitleInput title={ timeline.title } onRename={ onRename } />
+          ) }
           <p className="mt-2 text-xs text-muted-foreground">
-            {timeline.layers.length}{' '}
-            {timeline.layers.length === 1 ? 'layer' : 'layers'} ·{' '}
-            {timeline.events.length}{' '}
-            {timeline.events.length === 1 ? 'event' : 'events'}
-            {contentRange
+            { timeline.layers.length }{ ' ' }
+            { timeline.layers.length === 1 ? 'layer' : 'layers' } ·{ ' ' }
+            { timeline.events.length }{ ' ' }
+            { timeline.events.length === 1 ? 'event' : 'events' }
+            { contentRange
               ? ` · ${contentRange.startDate} — ${contentRange.endDate}`
-              : ''}
-            {range && !isFitted
+              : '' }
+            { range && !isFitted
               ? ` · showing ${range.startDate} — ${range.endDate}`
-              : ''}
+              : '' }
           </p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
-          {readOnly ? null : (
+          { readOnly ? null : (
             <ButtonGroup>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1135,16 +1152,16 @@ function TimelineWorkspace({
                     variant="outline"
                     size="icon"
                     aria-label="Undo"
-                    disabled={!canUndo(history)}
-                    onClick={onUndo}
+                    disabled={ !canUndo(history) }
+                    onClick={ onUndo }
                   >
                     <IconArrowBackUp />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {describeUndo(history)
+                  { describeUndo(history)
                     ? `Undo ${describeUndo(history)?.toLocaleLowerCase()}`
-                    : 'Nothing to undo'}
+                    : 'Nothing to undo' }
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
@@ -1154,28 +1171,28 @@ function TimelineWorkspace({
                     variant="outline"
                     size="icon"
                     aria-label="Redo"
-                    disabled={!canRedo(history)}
-                    onClick={onRedo}
+                    disabled={ !canRedo(history) }
+                    onClick={ onRedo }
                   >
                     <IconArrowForwardUp />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {describeRedo(history)
+                  { describeRedo(history)
                     ? `Redo ${describeRedo(history)?.toLocaleLowerCase()}`
-                    : 'Nothing to redo'}
+                    : 'Nothing to redo' }
                 </TooltipContent>
               </Tooltip>
             </ButtonGroup>
-          )}
+          ) }
           <ButtonGroup>
             <Button
               type="button"
               variant="outline"
               size="icon"
               aria-label="Zoom out"
-              disabled={!contentRange || isFitted}
-              onClick={onZoomOut}
+              disabled={ !contentRange || isFitted }
+              onClick={ onZoomOut }
             >
               <IconMinus />
             </Button>
@@ -1184,8 +1201,8 @@ function TimelineWorkspace({
               variant="outline"
               size="icon"
               aria-label="Zoom in"
-              disabled={!contentRange}
-              onClick={onZoomIn}
+              disabled={ !contentRange }
+              onClick={ onZoomIn }
             >
               <IconPlus />
             </Button>
@@ -1194,8 +1211,8 @@ function TimelineWorkspace({
               variant="outline"
               size="icon"
               aria-label="Fit the whole timeline"
-              disabled={isFitted}
-              onClick={onZoomFit}
+              disabled={ isFitted }
+              onClick={ onZoomFit }
             >
               <IconZoomReset />
             </Button>
@@ -1203,82 +1220,95 @@ function TimelineWorkspace({
           <div className="relative">
             <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              ref={searchInputRef}
+              ref={ searchInputRef }
               type="search"
-              value={searchQuery}
-              onChange={(event) => onSearchQueryChange(event.target.value)}
-              onKeyDown={(event) => {
+              value={ searchQuery }
+              onChange={ (event) => onSearchQueryChange(event.target.value) }
+              onKeyDown={ (event) => {
                 if (event.key === 'Escape') {
                   onSearchQueryChange('')
                   event.currentTarget.blur()
                 }
-              }}
+              } }
               placeholder="Search events"
               aria-label="Search events"
               className="w-40 pl-8 lg:w-52"
             />
-            {search.isActive ? (
+            { search.isActive ? (
               <button
                 type="button"
                 aria-label="Clear search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => onSearchQueryChange('')}
+                onClick={ () => onSearchQueryChange('') }
               >
                 <IconX className="size-3.5" />
               </button>
-            ) : null}
+            ) : null }
           </div>
-          {readOnly ? null : (
+          { readOnly ? null : (
             <>
-              <Button type="button" variant="outline" onClick={onAddLayer}>
+              <Button type="button" variant="outline" onClick={ onAddLayer }>
                 <IconLayersIntersect />
                 Add layer
               </Button>
-              <Button type="button" variant="outline" onClick={onImportEvents}>
-                <IconJson />
-                Import JSON
-              </Button>
-              <Button
-                type="button"
-                disabled={!firstLayer}
-                onClick={() => {
-                  if (firstLayer) onCreateEvent(firstLayer.id)
-                }}
-              >
-                <IconPlus />
-                Add event
-              </Button>
+              {/* One action with two ways in: the common single event, and a
+                  batch pasted as JSON. The split keeps the primary label short
+                  without hiding the bulk path behind a menu. */}
+              <ButtonGroup>
+                <Button
+                  type="button"
+                  disabled={ !firstLayer }
+                  onClick={ () => {
+                    if (firstLayer) onCreateEvent(firstLayer.id)
+                  } }
+                >
+                  <IconPlus />
+                  Add event
+                </Button>
+                <ButtonGroupSeparator className="bg-primary-foreground/40" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      aria-label="Add events from JSON"
+                      onClick={ onImportEvents }
+                    >
+                      {/* The JSON glyph is a block of lettering that turns to
+                          mush without a label beside it; braces around a plus
+                          read at 16px and still say "add". */}
+                      <IconBracesPlus />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Add events from JSON</TooltipContent>
+                </Tooltip>
+              </ButtonGroup>
             </>
-          )}
+          ) }
         </div>
       </div>
-      {search.isActive ? (
+      { search.isActive ? (
         <p className="mb-2 text-xs text-muted-foreground print:hidden">
-          {search.matchCount}{' '}
-          {search.matchCount === 1 ? 'event matches' : 'events match'} “
-          {searchQuery.trim()}”. Others are dimmed.
+          { search.matchCount }{ ' ' }
+          { search.matchCount === 1 ? 'event matches' : 'events match' } “
+          { searchQuery.trim() }”. Others are dimmed.
         </p>
-      ) : null}
+      ) : null }
       <TimelineCanvas
-        timeline={timeline}
-        range={range}
-        contentRange={contentRange}
-        matchedEventIds={search.matchedEventIds}
-        isSearchActive={search.isActive}
-        readOnly={readOnly}
-        onViewRangeChange={onViewRangeChange}
-        onCreateEvent={onCreateEvent}
-        onEditEvent={onEditEvent}
-        onEditLayer={onEditLayer}
-        onMoveLayer={onMoveLayer}
-        onReorderLayers={onReorderLayers}
-        onChangeEventDates={onChangeEventDates}
+        timeline={ timeline }
+        range={ range }
+        contentRange={ contentRange }
+        matchedEventIds={ search.matchedEventIds }
+        isSearchActive={ search.isActive }
+        readOnly={ readOnly }
+        onViewRangeChange={ onViewRangeChange }
+        onCreateEvent={ onCreateEvent }
+        onEditEvent={ onEditEvent }
+        onEditLayer={ onEditLayer }
+        onMoveLayer={ onMoveLayer }
+        onReorderLayers={ onReorderLayers }
+        onChangeEventDates={ onChangeEventDates }
       />
-      <p className="mt-4 text-[11px] leading-4 text-muted-foreground print:hidden">
-        {readOnly
-          ? 'Drag the canvas to pan and use ⌘-scroll to zoom.'
-          : 'Drag an event to move it, or its edges to change its length. Drag the canvas to pan, ⌘-scroll to zoom, and press ? for shortcuts.'}
-      </p>
     </TooltipProvider>
   )
 }
@@ -1301,15 +1331,20 @@ function TimelineTitleInput({
   }, [title])
 
   return (
-    <div className="timeline-title-shell group/title relative -ml-2 inline-flex max-w-full items-center">
+    <div className="timeline-title-shell group/title relative inline-flex max-w-full items-center">
+      <IconTimelineEvent
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground/70 sm:size-5"
+      />
+      { /* The input's own px-2 doubles as the gap after the icon. */ }
       <h1 className="min-w-0">
         <Input
           aria-label="Timeline title"
           autoComplete="off"
           className="h-auto w-auto min-w-40 max-w-full border-0 border-b border-transparent bg-transparent px-2 py-1 pr-8 text-2xl font-semibold tracking-tight shadow-none hover:border-input focus-visible:border-ring focus-visible:bg-transparent focus-visible:ring-0 sm:text-3xl md:text-3xl dark:bg-transparent"
-          size={Math.min(Math.max(draftTitle.length, 12), 60)}
-          value={draftTitle}
-          onBlur={() => {
+          size={ Math.min(Math.max(draftTitle.length, 12), 60) }
+          value={ draftTitle }
+          onBlur={ () => {
             const nextTitle = draftTitle.trim()
             if (!nextTitle) {
               renameDebouncer.cancel()
@@ -1319,8 +1354,8 @@ function TimelineTitleInput({
             setDraftTitle(nextTitle)
             renameDebouncer.maybeExecute(nextTitle)
             renameDebouncer.flush()
-          }}
-          onChange={(event) => {
+          } }
+          onChange={ (event) => {
             const nextTitle = event.target.value
             setDraftTitle(nextTitle)
             if (!nextTitle.trim()) {
@@ -1328,14 +1363,14 @@ function TimelineTitleInput({
               return
             }
             renameDebouncer.maybeExecute(nextTitle)
-          }}
-          onKeyDown={(event) => {
+          } }
+          onKeyDown={ (event) => {
             if (event.key === 'Enter') event.currentTarget.blur()
             if (event.key === 'Escape') {
               renameDebouncer.cancel()
               setDraftTitle(title)
             }
-          }}
+          } }
         />
       </h1>
       <IconPencil className="pointer-events-none absolute right-2 size-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-70 group-focus-within/title:opacity-70" />
@@ -1347,22 +1382,22 @@ function TimelineBrand({ onNavigateHome }: { onNavigateHome: () => void }) {
   return (
     <Link
       to="/"
-      search={{}}
-      onClick={onNavigateHome}
+      search={ {} }
+      onClick={ onNavigateHome }
       aria-label="tlmkr.com home"
       className="tlmkr-brand flex shrink-0 items-center gap-2 rounded-sm text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <IconTimeline aria-hidden="true" className="tlmkr-brand-icon size-4" />
       <span className="tlmkr-wordmark hidden sm:inline-flex" aria-hidden="true">
-        {Array.from('tlmkr.com').map((character, index) => (
+        { Array.from('tlmkr.com').map((character, index) => (
           <span
-            key={`${character}-${index}`}
+            key={ `${character}-${index}` }
             className="tlmkr-letter"
-            style={{ animationDelay: `${index * 32}ms` }}
+            style={ { animationDelay: `${index * 32}ms` } }
           >
-            {character}
+            { character }
           </span>
-        ))}
+        )) }
         <span className="tlmkr-rail">
           <span className="tlmkr-playhead" />
         </span>
@@ -1392,80 +1427,80 @@ function EmptyState({
         <IconTimeline className="size-5" />
       </div>
       <h1 className="text-xl font-semibold tracking-tight">
-        {hasTimelines ? 'Open a timeline' : 'Create your first timeline'}
+        { hasTimelines ? 'Open a timeline' : 'Create your first timeline' }
       </h1>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
         Organize events into clear layers and see days or years in one fitted
         view. Your work stays in this browser.
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
-        <Button type="button" onClick={onCreate}>
+        <Button type="button" onClick={ onCreate }>
           <IconPlus />
           New timeline
         </Button>
-        <Button type="button" variant="outline" onClick={onImport}>
+        <Button type="button" variant="outline" onClick={ onImport }>
           <IconFileImport />
           Import timeline
         </Button>
       </div>
 
-      {hasTimelines ? (
+      { hasTimelines ? (
         <>
           <p className="mt-10 mb-3 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
             Your timelines
           </p>
           <div className="grid w-full gap-2 sm:grid-cols-2">
-            {timelines.map((timeline) => (
+            { timelines.map((timeline) => (
               <button
-                key={timeline.id}
+                key={ timeline.id }
                 type="button"
                 className="border bg-card p-4 text-left outline-none transition-colors hover:border-foreground/25 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring/50"
-                onClick={() => onOpenTimeline(timeline.id)}
+                onClick={ () => onOpenTimeline(timeline.id) }
               >
                 <span className="block text-sm font-medium">
-                  {timeline.title}
+                  { timeline.title }
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                  {timeline.layers.length}{' '}
-                  {timeline.layers.length === 1 ? 'layer' : 'layers'} ·{' '}
-                  {timeline.events.length}{' '}
-                  {timeline.events.length === 1 ? 'event' : 'events'}
+                  { timeline.layers.length }{ ' ' }
+                  { timeline.layers.length === 1 ? 'layer' : 'layers' } ·{ ' ' }
+                  { timeline.events.length }{ ' ' }
+                  { timeline.events.length === 1 ? 'event' : 'events' }
                 </span>
               </button>
-            ))}
+            )) }
           </div>
         </>
-      ) : null}
+      ) : null }
 
       <p className="mt-10 mb-3 text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
-        {hasTimelines ? 'Start from a template' : 'Or start from a template'}
+        { hasTimelines ? 'Start from a template' : 'Or start from a template' }
       </p>
       <div className="grid w-full gap-2 sm:grid-cols-3">
-        {timelineTemplates.map((template) => (
+        { timelineTemplates.map((template) => (
           <button
-            key={template.id}
+            key={ template.id }
             type="button"
             className="border bg-card p-4 text-left outline-none transition-colors hover:border-foreground/25 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring/50"
-            onClick={() => onUseTemplate(template)}
+            onClick={ () => onUseTemplate(template) }
           >
             <span className="flex items-center gap-1.5">
-              {template.layers.map((layer) => (
+              { template.layers.map((layer) => (
                 <span
-                  key={layer.title}
+                  key={ layer.title }
                   className="size-2 rounded-full"
-                  style={{ backgroundColor: layer.color }}
+                  style={ { backgroundColor: layer.color } }
                   aria-hidden="true"
                 />
-              ))}
+              )) }
             </span>
             <span className="mt-2 block text-sm font-medium">
-              {template.title}
+              { template.title }
             </span>
             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-              {template.description}
+              { template.description }
             </span>
           </button>
-        ))}
+        )) }
       </div>
     </div>
   )
