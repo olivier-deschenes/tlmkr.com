@@ -2,17 +2,15 @@ import { parseTimelineImport } from './timelineImport'
 import type { TimelineRecord } from './model'
 
 /**
- * Share links carry the whole timeline in the URL fragment.
+ * Packs a timeline into the compact payload a share link carries.
  *
- * A fragment is never sent to the server by the browser, so a shared timeline
- * stays as private as a local one: there is no upload, no database row, and no
- * link that keeps working after the recipient closes the tab. The cost is that
- * the timeline has to fit in a URL, hence gzip before base64.
+ * Sharing goes through `shareLink.ts`, which stores this payload and hands out
+ * a short URL. The payload is gzipped before base64 because it used to have to
+ * fit in a URL, and staying small still keeps the stored copy cheap.
  */
-export const SHARE_FRAGMENT_KEY = 'timeline'
 
-/** Past this, browsers and chat clients start truncating pasted links. */
-export const MAXIMUM_SHARE_LENGTH = 30_000
+/** Only read now, to keep links shared before short links existed working. */
+export const SHARE_FRAGMENT_KEY = 'timeline'
 
 const GZIP_PREFIX = 'g1'
 const PLAIN_PREFIX = 'p1'
@@ -104,23 +102,11 @@ export async function decodeSharedTimeline(
   return parseTimelineImport(json)
 }
 
-export async function createShareUrl(
-  timeline: TimelineRecord,
-  origin: string,
-): Promise<string> {
-  const payload = await encodeTimelineForSharing(timeline)
-  const url = `${origin.replace(/\/+$/, '')}/#${SHARE_FRAGMENT_KEY}=${payload}`
-
-  if (url.length > MAXIMUM_SHARE_LENGTH) {
-    throw new TimelineShareError(
-      'This timeline is too large to fit in a link. Export it as JSON and send the file instead.',
-    )
-  }
-
-  return url
-}
-
-/** Pulls the share payload out of a location hash, if there is one. */
+/**
+ * Pulls the share payload out of a location hash, if there is one.
+ *
+ * Nothing produces these links any more; this reads the ones already out there.
+ */
 export function readShareFragment(hash: string): string | null {
   const fragment = hash.startsWith('#') ? hash.slice(1) : hash
   if (!fragment) return null

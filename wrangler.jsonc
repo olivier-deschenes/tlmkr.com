@@ -4,4 +4,24 @@
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
+
+  // Short share links. Everything else in the app stays in the browser; this
+  // namespace only ever holds share payloads, and every one of them carries a
+  // one-day TTL, so the store empties itself.
+  "kv_namespaces": [
+    {
+      "binding": "SHARE_LINKS",
+      "id": "51a27fbf219f4918949f8db12931612a",
+    },
+  ],
+
+  // Caps how many short links one address can mint. `namespace_id` is a number
+  // we pick, not an account resource, so this needs no setup.
+  "ratelimits": [
+    {
+      "name": "SHARE_RATE_LIMIT",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
 }

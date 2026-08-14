@@ -4,11 +4,11 @@ import {
   IconAlertTriangle,
   IconBrandOpenai,
   IconCheck,
+  IconCloudUpload,
   IconCopy,
   IconExternalLink,
   IconJson,
   IconLayersIntersect,
-  IconShieldLock,
   IconTrash,
 } from '@tabler/icons-react'
 import { z } from 'zod'
@@ -36,6 +36,7 @@ import {
 } from '#/components/ui/dialog'
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -54,7 +55,8 @@ import type {
   TimelineLayer,
   TimelineRecord,
 } from '#/features/timeline/model'
-import { createShareUrl } from '#/features/timeline/share'
+import { createShortShareLink } from '#/features/timeline/shareLink'
+import type { ShortShareLink } from '#/features/timeline/shareLink'
 import { shortcutDefinitions } from '#/features/timeline/shortcuts'
 
 const titleSchema = z.string().trim().min(1, 'A title is required.')
@@ -1105,37 +1107,21 @@ export function ShareDialog({
   )
 }
 
-function ShareDialogBody({
-  timeline,
-  onClose,
+/** A read-only link with its own copy button, used by both share flavours. */
+function ShareLinkField({
+  id,
+  label,
+  url,
+  placeholder,
+  onCopyFailure,
 }: {
-  timeline: TimelineRecord
-  onClose: () => void
+  id: string
+  label: string
+  url: string | undefined
+  placeholder: string
+  onCopyFailure: (message: string) => void
 }) {
-  const [url, setUrl] = useState<string>()
-  const [error, setError] = useState<string>()
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-
-    void createShareUrl(timeline, window.location.origin)
-      .then((shareUrl) => {
-        if (!cancelled) setUrl(shareUrl)
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : 'This timeline could not be turned into a link.',
-        )
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [timeline])
 
   useEffect(() => {
     if (!copied) return
@@ -1144,64 +1130,128 @@ function ShareDialogBody({
   }, [copied])
 
   return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          readOnly
+          value={url ?? placeholder}
+          onFocus={(event) => event.currentTarget.select()}
+          className="font-mono text-xs"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!url}
+          onClick={() => {
+            if (!url) return
+            void navigator.clipboard
+              .writeText(url)
+              .then(() => setCopied(true))
+              .catch(() =>
+                onCopyFailure(
+                  'The link could not be copied. Select it and copy manually.',
+                ),
+              )
+          }}
+        >
+          {copied ? <IconCheck /> : <IconCopy />}
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+    </Field>
+  )
+}
+
+function ShareDialogBody({
+  timeline,
+  onClose,
+}: {
+  timeline: TimelineRecord
+  onClose: () => void
+}) {
+  const [shortLink, setShortLink] = useState<ShortShareLink>()
+  const [error, setError] = useState<string>()
+  const [attempt, setAttempt] = useState(0)
+
+  // Opening the dialog is the decision to share, so the link is minted right
+  // away rather than behind a second button.
+  useEffect(() => {
+    let cancelled = false
+    setError(undefined)
+
+    void createShortShareLink(timeline, window.location.origin)
+      .then((link) => {
+        if (!cancelled) setShortLink(link)
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'The share link could not be created.',
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [attempt, timeline])
+
+  return (
     <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle>Share this timeline</DialogTitle>
         <DialogDescription>
-          The whole timeline is packed into the link itself, so anyone with the
-          link can read it without an account.
+          Anyone with the link can read this timeline without an account, and it
+          does not let them edit your copy.
         </DialogDescription>
       </DialogHeader>
 
-      <Alert>
-        <IconShieldLock />
-        <AlertTitle>Still no server involved</AlertTitle>
-        <AlertDescription>
-          The timeline travels in the part of the URL after the <code>#</code>,
-          which browsers never send to a server. Whoever you send the link to
-          can read the timeline, so treat the link itself as the secret.
-        </AlertDescription>
-      </Alert>
-
       <FieldGroup>
+        <Alert>
+          <IconCloudUpload />
+          <AlertTitle>Stored for one day</AlertTitle>
+          <AlertDescription>
+            Sharing uploads a copy of the timeline to Cloudflare so the link
+            stays short enough to paste anywhere. It is deleted automatically 24
+            hours later, and the link stops working then. Treat the link itself
+            as the secret.
+          </AlertDescription>
+        </Alert>
+
         {error ? (
-          <Alert variant="destructive">
-            <IconAlertTriangle />
-            <AlertTitle>This timeline is too big to share as a link</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <>
+            <Alert variant="destructive">
+              <IconAlertTriangle />
+              <AlertTitle>The share link could not be created</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit"
+              onClick={() => setAttempt((count) => count + 1)}
+            >
+              Try again
+            </Button>
+          </>
         ) : (
-          <Field>
-            <FieldLabel htmlFor="share-url">Share link</FieldLabel>
-            <div className="flex items-center gap-2">
-              <Input
-                id="share-url"
-                readOnly
-                value={url ?? 'Building the link…'}
-                onFocus={(event) => event.currentTarget.select()}
-                className="font-mono text-xs"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!url}
-                onClick={() => {
-                  if (!url) return
-                  void navigator.clipboard
-                    .writeText(url)
-                    .then(() => setCopied(true))
-                    .catch(() =>
-                      setError(
-                        'The link could not be copied. Select it and copy manually.',
-                      ),
-                    )
-                }}
-              >
-                {copied ? <IconCheck /> : <IconCopy />}
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-            </div>
-          </Field>
+          <>
+            <ShareLinkField
+              id="share-url"
+              label="Share link"
+              url={shortLink?.url}
+              placeholder="Creating the link…"
+              onCopyFailure={setError}
+            />
+            {shortLink ? (
+              <FieldDescription>
+                Expires {new Date(shortLink.expiresAt).toLocaleString()}.
+              </FieldDescription>
+            ) : null}
+          </>
         )}
       </FieldGroup>
 

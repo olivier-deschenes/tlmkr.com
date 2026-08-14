@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TimelineIdRouteImport } from './routes/$timelineId'
+import { Route as SShareIdRouteImport } from './routes/s.$shareId'
+import { Route as ApiShareShareIdRouteImport } from './routes/api.share.$shareId'
+import { Route as ApiShareNewRouteImport } from './routes/api.share.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +25,74 @@ const TimelineIdRoute = TimelineIdRouteImport.update({
   path: '/$timelineId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SShareIdRoute = SShareIdRouteImport.update({
+  id: '/s/$shareId',
+  path: '/s/$shareId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShareShareIdRoute = ApiShareShareIdRouteImport.update({
+  id: '/api/share/$shareId',
+  path: '/api/share/$shareId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShareNewRoute = ApiShareNewRouteImport.update({
+  id: '/api/share/new',
+  path: '/api/share/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/s/$shareId': typeof SShareIdRoute
+  '/api/share/$shareId': typeof ApiShareShareIdRoute
+  '/api/share/new': typeof ApiShareNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/s/$shareId': typeof SShareIdRoute
+  '/api/share/$shareId': typeof ApiShareShareIdRoute
+  '/api/share/new': typeof ApiShareNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/s/$shareId': typeof SShareIdRoute
+  '/api/share/$shareId': typeof ApiShareShareIdRoute
+  '/api/share/new': typeof ApiShareNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$timelineId'
+  fullPaths:
+    | '/'
+    | '/$timelineId'
+    | '/s/$shareId'
+    | '/api/share/$shareId'
+    | '/api/share/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$timelineId'
-  id: '__root__' | '/' | '/$timelineId'
+  to:
+    | '/'
+    | '/$timelineId'
+    | '/s/$shareId'
+    | '/api/share/$shareId'
+    | '/api/share/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/$timelineId'
+    | '/s/$shareId'
+    | '/api/share/$shareId'
+    | '/api/share/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TimelineIdRoute: typeof TimelineIdRoute
+  SShareIdRoute: typeof SShareIdRoute
+  ApiShareShareIdRoute: typeof ApiShareShareIdRoute
+  ApiShareNewRoute: typeof ApiShareNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +111,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimelineIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$shareId': {
+      id: '/s/$shareId'
+      path: '/s/$shareId'
+      fullPath: '/s/$shareId'
+      preLoaderRoute: typeof SShareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/share/$shareId': {
+      id: '/api/share/$shareId'
+      path: '/api/share/$shareId'
+      fullPath: '/api/share/$shareId'
+      preLoaderRoute: typeof ApiShareShareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/share/new': {
+      id: '/api/share/new'
+      path: '/api/share/new'
+      fullPath: '/api/share/new'
+      preLoaderRoute: typeof ApiShareNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TimelineIdRoute: TimelineIdRoute,
+  SShareIdRoute: SShareIdRoute,
+  ApiShareShareIdRoute: ApiShareShareIdRoute,
+  ApiShareNewRoute: ApiShareNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

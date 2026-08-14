@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
-  MAXIMUM_SHARE_LENGTH,
   TimelineShareError,
-  createShareUrl,
   decodeSharedTimeline,
   encodeTimelineForSharing,
   readShareFragment,
@@ -77,19 +75,6 @@ describe('share encoding', () => {
       typeof CompressionStream === 'undefined' ? 'p1.' : 'g1.'
 
     expect(payload.startsWith(expectedPrefix)).toBe(true)
-  })
-
-  test('a realistic timeline fits in a link', async () => {
-    const url = await createShareUrl(sampleTimeline(40), 'https://tlmkr.com')
-
-    expect(url.length).toBeLessThan(MAXIMUM_SHARE_LENGTH)
-    expect(url).toContain('/#timeline=')
-  })
-
-  test('refuses a timeline that would not survive being pasted', async () => {
-    await expect(
-      createShareUrl(sampleTimeline(500), 'https://tlmkr.com'),
-    ).rejects.toThrow(TimelineShareError)
   })
 
   // Bun has no CompressionStream, so the uncompressed path is what runs here;
