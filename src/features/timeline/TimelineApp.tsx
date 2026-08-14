@@ -739,7 +739,7 @@ export function TimelineApp({
                 onValueChange={ (timelineId) => onSelectTimeline(timelineId) }
               >
                 <SelectTrigger
-                  className="w-[min(52vw,260px)]"
+                  className="w-[min(52vw,260px)] min-w-0 shrink"
                   aria-label="Current timeline"
                 >
                   <SelectValue placeholder="Choose a timeline" />
@@ -764,15 +764,16 @@ export function TimelineApp({
                   type="button"
                   size="sm"
                   variant="outline"
+                  aria-label="Import timeline"
                   onClick={ () => setTimelineImportOpen(true) }
                 >
                   <IconFileImport />
                   <span className="hidden sm:inline">Import timeline</span>
-                  <span className="sm:hidden">Import</span>
                 </Button>
                 <Button
                   type="button"
                   size="sm"
+                  variant="outline"
                   onClick={ () => setCreateTimelineOpen(true) }
                 >
                   <IconPlus />
@@ -781,6 +782,16 @@ export function TimelineApp({
                 </Button>
               </>
             ) }
+            { activeTimeline && !isSharedView ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={ () => setShareOpen(true) }
+              >
+                <IconShare />
+                <span className="hidden sm:inline">Share</span>
+              </Button>
+            ) : null }
             <ThemeToggle />
             { activeTimeline ? (
               <DropdownMenu>
@@ -795,11 +806,15 @@ export function TimelineApp({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onSelect={ () => setShareOpen(true) }>
-                    <IconShare />
-                    Share a link
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  { isSharedView ? (
+                    <>
+                      <DropdownMenuItem onSelect={ () => setShareOpen(true) }>
+                        <IconShare />
+                        Share a link
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null }
                   <DropdownMenuItem onSelect={ handleExport }>
                     <IconJson />
                     Export JSON
