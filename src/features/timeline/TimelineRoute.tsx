@@ -15,9 +15,15 @@ interface TimelineRouteProps {
   timelineId?: string
   /** Taken from `/s/<id>`: a short link whose timeline is fetched on mount. */
   shareId?: string
+  /** Taken from `?template=<id>`: opens that starter instead of the home screen. */
+  templateId?: string
 }
 
-export function TimelineRoute({ timelineId, shareId }: TimelineRouteProps) {
+export function TimelineRoute({
+  timelineId,
+  shareId,
+  templateId,
+}: TimelineRouteProps) {
   const navigate = useNavigate()
   const [sharedTimeline, setSharedTimeline] = useState<TimelineRecord>()
 
@@ -92,6 +98,7 @@ export function TimelineRoute({ timelineId, shareId }: TimelineRouteProps) {
       onSelectTimeline={onSelectTimeline}
       sharedTimeline={sharedTimeline}
       onDismissShared={dismissShared}
+      initialTemplateId={templateId}
     />
   )
 }

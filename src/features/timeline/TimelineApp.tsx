@@ -135,6 +135,9 @@ import {
   timelineTemplates,
 } from '#/features/timeline/templates'
 import type { TimelineTemplate } from '#/features/timeline/templates'
+import { TimelineHero } from '#/features/timeline/TimelineHero'
+import { TimelineLoading } from '#/features/timeline/TimelineLoading'
+import { HomeHero } from '#/features/landing/HomeHero'
 import { documentTitle } from '#/lib/site'
 
 interface TimelineAppProps {
@@ -143,6 +146,12 @@ interface TimelineAppProps {
   /** A timeline decoded from a share link, shown read-only until saved. */
   sharedTimeline?: TimelineRecord
   onDismissShared?: () => void
+  /**
+   * Template to open on arrival, named by a `?template=` param. The landing
+   * page for each template links here so its call to action lands in a working
+   * timeline rather than on a home screen with instructions.
+   */
+  initialTemplateId?: string
 }
 
 type LayerDialogState =
@@ -161,6 +170,7 @@ export function TimelineApp({
   onSelectTimeline,
   sharedTimeline,
   onDismissShared,
+  initialTemplateId,
 }: TimelineAppProps) {
   const [collection] = useState(() => getTimelineCollection())
   const query = useLiveQuery(
@@ -357,6 +367,26 @@ export function TimelineApp({
       `Started from ${template.title}`,
     )
   }
+
+  // `?template=` is a one-shot instruction that creates a timeline and then
+  // navigates to it. The ref matters because that navigation is not immediate:
+  // without it a re-render in the gap would start a second copy from the same
+  // param. An id that matches nothing is ignored rather than surfaced, since it
+  // can only come from a hand-edited URL.
+  const appliedTemplate = useRef(false)
+  useEffect(() => {
+    if (!initialTemplateId || appliedTemplate.current) return
+
+    const template = timelineTemplates.find(
+      (candidate) => candidate.id === initialTemplateId,
+    )
+    if (!template) return
+
+    appliedTemplate.current = true
+    handleUseTemplate(template)
+    // `handleUseTemplate` is deliberately not a dependency: it is rebuilt every
+    // render, and the ref above already limits this to a single run.
+  }, [initialTemplateId])
 
   const handleTimelineImport = (json: string) => {
     addTimeline(
@@ -689,14 +719,8 @@ export function TimelineApp({
     true,
   )
 
-  if (query.isLoading && !isSharedView) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-6">
-        <p className="text-sm text-muted-foreground">Loading timelines…</p>
-      </main>
-    )
-  }
-
+  // Checked before the loading state below, which a failed collection also
+  // satisfies: it is not ready and never will be.
   if (query.isError && !isSharedView) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg items-center px-6">
@@ -710,6 +734,18 @@ export function TimelineApp({
         </Alert>
       </main>
     )
+  }
+
+  // Anything short of `ready` means storage has not answered yet, and an empty
+  // result is then indistinguishable from a browser holding nothing. `isLoading`
+  // on its own is not enough: the collection starts out `idle` and only reaches
+  // `loading` once the subscription is committed, so the first render after
+  // hydration would otherwise draw the home screen of a first-time visitor and
+  // correct itself a frame later.
+  if (!query.isReady && !isSharedView) {
+    // The home screen has its own placeholder — the hero the server already
+    // painted — so it holds still instead of blinking through a spinner.
+    return activeTimelineId ? <TimelineLoading /> : <HomeHero />
   }
 
   const selectedLayer =
@@ -1437,17 +1473,7 @@ function EmptyState({
   const hasTimelines = timelines.length > 0
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-2xl flex-col items-center justify-center text-center">
-      <div className="mb-5 flex size-11 items-center justify-center border bg-card">
-        <IconTimeline className="size-5" />
-      </div>
-      <h1 className="text-xl font-semibold tracking-tight">
-        { hasTimelines ? 'Open a timeline' : 'Create your first timeline' }
-      </h1>
-      <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-        Organize events into clear layers and see days or years in one fitted
-        view. Your work stays in this browser.
-      </p>
+    <TimelineHero>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <Button type="button" onClick={ onCreate }>
           <IconPlus />
@@ -1517,7 +1543,7 @@ function EmptyState({
           </button>
         )) }
       </div>
-    </div>
+    </TimelineHero>
   )
 }
 

@@ -6,87 +6,93 @@ import {
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { createServerFn } from '@tanstack/react-start'
-import { getRequestUrl } from '@tanstack/react-start/server'
 import { ThemeProvider } from 'next-themes'
 
 import { Toaster } from '#/components/ui/sonner'
 import { Button } from '#/components/ui/button'
-import { SITE_NAME, SITE_TITLE } from '#/lib/site'
+import { jsonLd } from '#/lib/seo'
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  absoluteUrl,
+} from '#/lib/site'
 
 import appCss from '../styles.css?url'
 
-const getSiteOrigin = createServerFn({ method: 'GET' }).handler(() => ({
-  origin: getRequestUrl({ xForwardedHost: true }).origin,
-}))
+const imageUrl = absoluteUrl('/og.jpg')
+const imageAlt = 'A tlmkr timeline with events arranged across three layers.'
 
 export const Route = createRootRoute({
-  loader: () => getSiteOrigin(),
-  head: ({ loaderData }) => {
-    const description =
-      'Create clear, layered timelines with events that can span days or years. Everything stays in your browser.'
-    const imageUrl = loaderData
-      ? new URL('/og.png', loaderData.origin).toString()
-      : undefined
-
-    return {
-      meta: [
-        {
-          charSet: 'utf-8',
-        },
-        {
-          name: 'viewport',
-          content: 'width=device-width, initial-scale=1',
-        },
-        {
-          title: SITE_TITLE,
-        },
-        {
-          name: 'description',
-          content: description,
-        },
-        { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: SITE_TITLE },
-        { property: 'og:description', content: description },
-        ...(imageUrl
-          ? [
-              { property: 'og:image', content: imageUrl },
-              { property: 'og:image:width', content: '1536' },
-              { property: 'og:image:height', content: '1024' },
-              { name: 'twitter:card', content: 'summary_large_image' },
-              { name: 'twitter:title', content: SITE_TITLE },
-              { name: 'twitter:description', content: description },
-              { name: 'twitter:image', content: imageUrl },
-            ]
-          : []),
-      ],
-      links: [
-        {
-          rel: 'stylesheet',
-          href: appCss,
-        },
-        { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
-        {
-          rel: 'icon',
-          type: 'image/png',
-          sizes: '16x16',
-          href: '/favicon-16x16.png',
-        },
-        {
-          rel: 'icon',
-          type: 'image/png',
-          sizes: '32x32',
-          href: '/favicon-32x32.png',
-        },
-        {
-          rel: 'apple-touch-icon',
-          sizes: '180x180',
-          href: '/apple-touch-icon.png',
-        },
-        { rel: 'manifest', href: '/site.webmanifest' },
-      ],
-    }
-  },
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      },
+      {
+        title: SITE_TITLE,
+      },
+      {
+        name: 'description',
+        content: SITE_DESCRIPTION,
+      },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: SITE_NAME },
+      { property: 'og:url', content: SITE_URL },
+      { property: 'og:title', content: SITE_TITLE },
+      { property: 'og:description', content: SITE_DESCRIPTION },
+      { property: 'og:image', content: imageUrl },
+      { property: 'og:image:type', content: 'image/jpeg' },
+      { property: 'og:image:width', content: '1536' },
+      { property: 'og:image:height', content: '1024' },
+      { property: 'og:image:alt', content: imageAlt },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: SITE_TITLE },
+      { name: 'twitter:description', content: SITE_DESCRIPTION },
+      { name: 'twitter:image', content: imageUrl },
+      { name: 'twitter:image:alt', content: imageAlt },
+    ],
+    scripts: [
+      jsonLd({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_NAME,
+        alternateName: 'tlmkr timeline maker',
+        url: SITE_URL,
+        description: SITE_DESCRIPTION,
+      }),
+    ],
+    links: [
+      {
+        rel: 'stylesheet',
+        href: appCss,
+      },
+      { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '16x16',
+        href: '/favicon-16x16.png',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '32x32',
+        href: '/favicon-32x32.png',
+      },
+      {
+        rel: 'apple-touch-icon',
+        sizes: '180x180',
+        href: '/apple-touch-icon.png',
+      },
+      { rel: 'manifest', href: '/site.webmanifest' },
+    ],
+  }),
   notFoundComponent: NotFoundPage,
   shellComponent: RootDocument,
 })

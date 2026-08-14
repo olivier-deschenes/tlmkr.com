@@ -324,6 +324,26 @@ body {
   }
 }
 
+/*
+ * Holds a loading indicator back until waiting is actually plausible.
+ *
+ * Timelines come out of local storage synchronously, so the load usually
+ * resolves within a single frame. A spinner shown immediately would appear and
+ * vanish too fast to read as anything but a flicker — worse than showing
+ * nothing. The element is laid out from the start and only its opacity is
+ * animated, so revealing it never moves the page.
+ */
+.tlmkr-deferred {
+  opacity: 0;
+  animation: tlmkr-deferred-in 160ms ease-out 260ms forwards;
+}
+
+@keyframes tlmkr-deferred-in {
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tlmkr-rail,
   .tlmkr-brand-icon,
@@ -332,6 +352,14 @@ body {
   .timeline-title-shell > h1,
   .timeline-title-shell::after {
     animation: none !important;
+  }
+
+  /*
+   * The delay is the point here rather than the motion, so this keeps the
+   * timing and drops only the fade.
+   */
+  .tlmkr-deferred {
+    animation: tlmkr-deferred-in 1ms linear 260ms forwards;
   }
 
   .timeline-title-shell > h1 {

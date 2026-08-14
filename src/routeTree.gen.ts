@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TimelineIdRouteImport } from './routes/$timelineId'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SShareIdRouteImport } from './routes/s.$shareId'
+import { Route as TemplatesIndexRouteImport } from './routes/templates.index'
+import { Route as TemplatesTemplateIdRouteImport } from './routes/templates.$templateId'
 import { Route as ApiShareShareIdRouteImport } from './routes/api.share.$shareId'
 import { Route as ApiShareNewRouteImport } from './routes/api.share.new'
 
@@ -25,9 +29,29 @@ const TimelineIdRoute = TimelineIdRouteImport.update({
   path: '/$timelineId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SShareIdRoute = SShareIdRouteImport.update({
   id: '/s/$shareId',
   path: '/s/$shareId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesTemplateIdRoute = TemplatesTemplateIdRouteImport.update({
+  id: '/templates/$templateId',
+  path: '/templates/$templateId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiShareShareIdRoute = ApiShareShareIdRouteImport.update({
@@ -44,14 +68,22 @@ const ApiShareNewRoute = ApiShareNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/s/$shareId': typeof SShareIdRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates/': typeof TemplatesIndexRoute
   '/api/share/$shareId': typeof ApiShareShareIdRoute
   '/api/share/new': typeof ApiShareNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/s/$shareId': typeof SShareIdRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates': typeof TemplatesIndexRoute
   '/api/share/$shareId': typeof ApiShareShareIdRoute
   '/api/share/new': typeof ApiShareNewRoute
 }
@@ -59,7 +91,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$timelineId': typeof TimelineIdRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/s/$shareId': typeof SShareIdRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates/': typeof TemplatesIndexRoute
   '/api/share/$shareId': typeof ApiShareShareIdRoute
   '/api/share/new': typeof ApiShareNewRoute
 }
@@ -68,21 +104,33 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$timelineId'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/s/$shareId'
+    | '/templates/$templateId'
+    | '/templates/'
     | '/api/share/$shareId'
     | '/api/share/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$timelineId'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/s/$shareId'
+    | '/templates/$templateId'
+    | '/templates'
     | '/api/share/$shareId'
     | '/api/share/new'
   id:
     | '__root__'
     | '/'
     | '/$timelineId'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/s/$shareId'
+    | '/templates/$templateId'
+    | '/templates/'
     | '/api/share/$shareId'
     | '/api/share/new'
   fileRoutesById: FileRoutesById
@@ -90,7 +138,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TimelineIdRoute: typeof TimelineIdRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SShareIdRoute: typeof SShareIdRoute
+  TemplatesTemplateIdRoute: typeof TemplatesTemplateIdRoute
+  TemplatesIndexRoute: typeof TemplatesIndexRoute
   ApiShareShareIdRoute: typeof ApiShareShareIdRoute
   ApiShareNewRoute: typeof ApiShareNewRoute
 }
@@ -111,11 +163,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimelineIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/s/$shareId': {
       id: '/s/$shareId'
       path: '/s/$shareId'
       fullPath: '/s/$shareId'
       preLoaderRoute: typeof SShareIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/': {
+      id: '/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof TemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/$templateId': {
+      id: '/templates/$templateId'
+      path: '/templates/$templateId'
+      fullPath: '/templates/$templateId'
+      preLoaderRoute: typeof TemplatesTemplateIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/share/$shareId': {
@@ -138,7 +218,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TimelineIdRoute: TimelineIdRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SShareIdRoute: SShareIdRoute,
+  TemplatesTemplateIdRoute: TemplatesTemplateIdRoute,
+  TemplatesIndexRoute: TemplatesIndexRoute,
   ApiShareShareIdRoute: ApiShareShareIdRoute,
   ApiShareNewRoute: ApiShareNewRoute,
 }
